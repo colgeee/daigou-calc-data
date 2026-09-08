@@ -94,6 +94,18 @@ def test_an_undersized_body_is_retried_then_raised(tmp_path, monkeypatch):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_a_caller_can_lower_the_floor_for_a_source_with_tiny_files(tmp_path, monkeypatch):
+    """The Streamlined mirror's per-state rate files bottom out at 48 bytes for a state
+    with one statewide rate row, so `MIN_BODY_BYTES` is a per-call default rather than a
+    hard rule; a caller that knows its source ships tiny real files passes its own."""
+    monkeypatch.setenv("PIPELINE_CACHE_DIR", str(tmp_path))
+    body = b"26,45,26,0.06,0.06,0.06,0.06,20230101,99991231\n"
+    assert len(body) < http.MIN_BODY_BYTES
+    monkeypatch.setattr(http.requests, "get", lambda url, **kw: FakeResp(content=body))
+    assert http.get_cached("https://example.test/g", min_bytes=32) == body
+    assert [p.read_bytes() for p in tmp_path.iterdir()] == [body]
+
+
 def test_a_body_exactly_at_the_floor_is_cached(tmp_path, monkeypatch):
     monkeypatch.setenv("PIPELINE_CACHE_DIR", str(tmp_path))
     body = b"y" * http.MIN_BODY_BYTES

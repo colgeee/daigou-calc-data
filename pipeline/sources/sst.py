@@ -16,6 +16,15 @@ from pipeline.model import ZipRate
 from pipeline.sources import REGISTRY
 
 MIRROR = "http://52.15.48.162/ratesandboundry"
+# The mirror's per-state payloads are legitimately tiny wherever a state has one statewide
+# rate and one statewide ZIP row: the live rate files run from 48 bytes (KY, MI, RI) to
+# 38 kB, and the boundary files from 121 bytes to 26 MB, so `http.MIN_BODY_BYTES` -- sized
+# for this pipeline's whole-document sources -- rejects real files here. This floor only has
+# to catch an empty or truncated-to-nothing body; a served error page is caught downstream
+# instead, by `unpack` (no `.csv` member in the archive), `parse_rate_file` + `compose` (no
+# current jtype-45 row) and the builder's own per-state coverage gate. The two directory
+# indexes are whole documents and keep the default floor: both run over 2 kB.
+MIN_PAYLOAD_BYTES = 32
 STATES = {
     "AR": "05", "GA": "13", "IA": "19", "IN": "18", "KS": "20", "KY": "21",
     "MI": "26", "MN": "27", "NC": "37", "ND": "38", "NE": "31", "NJ": "34",
@@ -245,10 +254,16 @@ class SstAdapter:
             rate_url = urljoin(f"{MIRROR}/", rate_files[st])
             bound_url = urljoin(f"{MIRROR}/", bound_files[st])
             rates = parse_rate_file(
-                unpack(get_cached(rate_url, ttl_days=7), rate_files[st])
+                unpack(
+                    get_cached(rate_url, ttl_days=7, min_bytes=MIN_PAYLOAD_BYTES),
+                    rate_files[st],
+                )
             )
             zips = parse_boundary_zips(
-                unpack(get_cached(bound_url, ttl_days=7), bound_files[st])
+                unpack(
+                    get_cached(bound_url, ttl_days=7, min_bytes=MIN_PAYLOAD_BYTES),
+                    bound_files[st],
+                )
             )
             yield from compose(st, rates, zips, census, on)
 

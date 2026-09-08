@@ -271,10 +271,10 @@ def test_sst_adapter_rows_requests_flat_urls_and_yields_wa_rows(monkeypatch):
 
     rate_url = "http://52.15.48.162/ratesandboundry/Rates/WAR2026Q4AUG27.csv"
     boundary_url = "http://52.15.48.162/ratesandboundry/Boundary/WAB2026Q4AUG27.zip"
-    requested: list[str] = []
+    requested: list[tuple[str, int]] = []
 
-    def fake_get_cached(url, *, ttl_days: float = 1.0) -> bytes:
-        requested.append(url)
+    def fake_get_cached(url, *, ttl_days: float = 1.0, min_bytes: int = 512) -> bytes:
+        requested.append((url, min_bytes))
         if url in (f"{sst.MIRROR}/Rates/", f"{sst.MIRROR}/Boundary/"):
             return index_html
         if url == rate_url:
@@ -289,7 +289,14 @@ def test_sst_adapter_rows_requests_flat_urls_and_yields_wa_rows(monkeypatch):
 
     rows = list(adapter.rows(census(), ON))
 
+    urls = [u for u, _ in requested]
     # No doubled /ratesandboundry/ratesandboundry/... path.
-    assert rate_url in requested
-    assert boundary_url in requested
+    assert rate_url in urls
+    assert boundary_url in urls
     assert rows and all(r.state == "WA" for r in rows)
+    # The per-state payloads ask for the low floor -- KY's, MI's and RI's live rate files
+    # are 48 bytes, well under `http.MIN_BODY_BYTES` -- while the two directory indexes,
+    # which are whole documents over 2 kB, keep the default.
+    by_url = dict(requested)
+    assert by_url[rate_url] == by_url[boundary_url] == sst.MIN_PAYLOAD_BYTES
+    assert by_url[f"{sst.MIRROR}/Rates/"] == by_url[f"{sst.MIRROR}/Boundary/"] == 512

@@ -9,12 +9,17 @@ from pathlib import Path
 import requests
 
 UA = "daigou-calc-data/1 (+https://github.com/colgeee/daigou-calc-data)"
-# The smallest response body worth caching. Every source this pipeline fetches -- a
-# directory index, a rate CSV, a PDF, a gazetteer archive -- runs to kilobytes at least, so
-# a body this short is a truncated transfer, a stub error page or an empty answer, never the
-# real file. Caching one would poison the cache for a whole TTL and hand the adapter a
-# document it would either misparse or read as "no rows"; counting it as a failed attempt
-# instead lets the retry loop try again, and fails the build loudly if all three are short.
+# The default floor on a response body worth caching. Every whole-document source this
+# pipeline fetches -- a gazetteer archive, a relationship file, a rate CSV, a PDF, a
+# directory index -- runs to kilobytes, so a body this short is a truncated transfer, a stub
+# error page or an empty answer, never the real file. Caching one would poison the cache for
+# a whole TTL and hand the adapter a document it would either misparse or read as "no rows";
+# counting it as a failed attempt instead lets the retry loop try again, and fails the build
+# loudly if all three are short.
+#
+# It is a per-call default, not a hard rule, because one source genuinely ships tiny files:
+# the Streamlined mirror's per-state payloads bottom out at 48 bytes for a state with a
+# single statewide rate row (see `sst.MIN_PAYLOAD_BYTES`).
 MIN_BODY_BYTES = 512
 
 
@@ -38,7 +43,10 @@ def _write_cache(path: Path, body: bytes) -> None:
         raise
 
 
-def get_cached(url: str, *, ttl_days: float = 1.0) -> bytes:
+def get_cached(url: str, *, ttl_days: float = 1.0, min_bytes: int = MIN_BODY_BYTES) -> bytes:
+    """Fetch `url`, serving it from the on-disk cache while that copy is under `ttl_days`
+    old. A body under `min_bytes` is refused rather than cached; pass a lower `min_bytes`
+    for a source whose real files are legitimately small."""
     path = cache_dir() / hashlib.sha1(url.encode()).hexdigest()
     if path.is_file() and (time.time() - path.stat().st_mtime) < ttl_days * 86400:
         return path.read_bytes()
@@ -48,14 +56,14 @@ def get_cached(url: str, *, ttl_days: float = 1.0) -> bytes:
             resp = requests.get(url, headers={"User-Agent": UA}, timeout=120)
             resp.raise_for_status()
             body = resp.content
-            if len(body) >= MIN_BODY_BYTES:
+            if len(body) >= min_bytes:
                 _write_cache(path, body)
                 return body
             # An implausibly short body is a failed attempt, not a document: fall through
             # to the sleep and retry, and raise after the last attempt like any other.
             last = ValueError(
                 f"{url}: response body is {len(body)} bytes, under the "
-                f"{MIN_BODY_BYTES}-byte floor -- refusing to cache it"
+                f"{min_bytes}-byte floor -- refusing to cache it"
             )
         except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
             last = e
