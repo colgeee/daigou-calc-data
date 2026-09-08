@@ -1,4 +1,4 @@
-# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #26).
 # Phase 2 replaces this with the county local-option table.
 state: MO
 state_rate: "0.04225"

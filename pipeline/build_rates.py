@@ -16,7 +16,7 @@ from pipeline.model import ZipRate, assemble
 from pipeline.validate import validate
 
 # The 2024 gazetteer carries 33 791 ZCTAs and a full build now prices ~33 600 of them --
-# every state, since decision #25 publishes the eight without a local-rate source at their
+# every state, since decision #26 publishes the eight without a local-rate source at their
 # state rate -- so a build has to clear 25 000 rows to be publishable (decision #21). The
 # per-state gate below is the tighter check: this floor only catches a wholesale collapse.
 MIN_ZIPS = 25000
@@ -84,7 +84,7 @@ def build(census: Census, on: date, states: list[str] | None = None, adapters=No
         )
     print(f"[build] total: {len(rows)} ZIPs across {len(counts)} state codes")
     categories = load_categories()
-    # Decision #25: a state with no local-rate source is still published, at the state rate
+    # Decision #26: a state with no local-rate source is still published, at the state rate
     # with local 0, and the app asks the user for the local rate there. Print the count so a
     # local-rate adapter silently lost (or newly landed) shows up in the build log.
     flagged = sorted(s for s in counts if not categories.get(s, {}).get("localCoverage", True))

@@ -28,7 +28,7 @@ def census():
 
 def test_every_yaml_loads_and_has_required_fields():
     files = sorted(RULES.glob("*.yaml"))
-    assert len(files) == 22   # 14 flat/regional + the 8 state-rate-only states (decision #25)
+    assert len(files) == 22   # 14 flat/regional + the 8 state-rate-only states (decision #26)
     for f in files:
         t = yaml_states.load_state(f)
         assert t.state == f.stem.upper() and D("0") <= t.state_rate <= D("0.08"), f
@@ -79,7 +79,7 @@ def test_state_fips_map_covers_all_yaml_states():
 
 
 def test_state_rate_only_states_publish_the_state_rate_and_no_local():
-    """Decision #25: the eight states with no local-rate source still get a row per ZIP, at
+    """Decision #26: the eight states with no local-rate source still get a row per ZIP, at
     the state rate with `local_rate` 0 and no food rate, so the app can place the ZIP and
     flag it as `localCoverage: false` rather than failing with "couldn't get a location"."""
     c = Census(

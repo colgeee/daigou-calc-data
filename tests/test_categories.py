@@ -33,7 +33,7 @@ def test_defaults_and_overrides():
     assert s["AL"]["rules"]["grocery"] == {"t": "stateReplaced", "rate": "0.03"}
     assert s["LA"]["rules"]["grocery"] == {"t": "localOnly"}
     assert s["CO"]["localCoverage"] is False and s["WA"]["localCoverage"] is True
-    # Decision #25: every state published at the state rate alone carries the flag, so the
+    # Decision #26: every state published at the state rate alone carries the flag, so the
     # app shows "unsupported area -- set your own rate" instead of failing to place the ZIP.
     # CO/LA/AL/AK are home rule and stay flagged; SC/MO/AZ/NM flip when Phase 2 lands.
     assert [c for c, e in s.items() if not e["localCoverage"]] == [

@@ -18,7 +18,7 @@ FIPS = {
     "DE": "10", "MT": "30", "NH": "33", "OR": "41", "PA": "42", "MA": "25", "CT": "09",
     "MD": "24", "ME": "23", "MS": "28", "ID": "16", "HI": "15", "DC": "11", "VA": "51",
     # State-rate-only states: no local-rate source, so their YAML carries the state rate
-    # alone and categories.yaml flags them `localCoverage: false` (decision #25). With no
+    # alone and categories.yaml flags them `localCoverage: false` (decision #26). With no
     # row at all the app cannot place the ZIP and says "couldn't get a location"; with one
     # it shows the state rate and asks the user for the local rate.
     "CO": "08", "LA": "22", "AL": "01", "AK": "02", "SC": "45", "MO": "29", "AZ": "04",

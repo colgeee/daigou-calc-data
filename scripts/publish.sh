@@ -33,6 +33,40 @@ fi
 
 git worktree prune
 
+# Hard-kill recovery: a run killed between `worktree add` and `cleanup` leaves gh-pages
+# checked out in a worktree at *that* run's own mktemp path -- a path this run has no way
+# to predict, so matching against this run's own freshly-minted $work (as an earlier
+# version of this script did) can never find it: $work is unique per run by construction,
+# so it never collides with anything a prior run registered. Only one worktree can have a
+# given branch checked out at a time, so the reliable match is by branch, not by path: walk
+# `git worktree list --porcelain` for the entry (if any) whose `branch` line is
+# `refs/heads/gh-pages`, or whose recorded path no longer exists on disk (a directory `git
+# worktree prune` above did not catch, e.g. because it was recreated by something else), and
+# force-remove it. This must run before `git branch --force gh-pages FETCH_HEAD` below,
+# since git refuses to force-move a branch that is checked out in another worktree.
+cur_path=""
+cur_branch=""
+reap_if_stale() {
+  if [ -n "$cur_path" ] && { [ "$cur_branch" = "refs/heads/gh-pages" ] || [ ! -d "$cur_path" ]; }; then
+    echo "publish: removing a stale worktree registration at $cur_path"
+    git worktree remove --force "$cur_path" 2>/dev/null || rm -rf "$cur_path"
+  fi
+}
+while IFS= read -r line; do
+  case "$line" in
+    "worktree "*)
+      reap_if_stale
+      cur_path="${line#worktree }"
+      cur_branch=""
+      ;;
+    "branch "*)
+      cur_branch="${line#branch }"
+      ;;
+  esac
+done < <(git worktree list --porcelain)
+reap_if_stale
+git worktree prune
+
 # Point the local gh-pages branch at the remote one, or bootstrap an empty branch when the
 # remote has none yet (the very first publish).
 if git fetch --quiet origin gh-pages 2>/dev/null; then
@@ -51,17 +85,6 @@ cleanup() {
   rm -rf "$parent"
 }
 trap cleanup EXIT
-
-# Hard-kill recovery: a run killed between `worktree add` and `cleanup` leaves the path
-# registered, and `git worktree add` then refuses with "already exists". `git worktree
-# prune` above clears a registration whose directory is gone; one whose directory survived
-# needs the explicit removal.
-while IFS= read -r p; do
-  if [ "$p" = "$work" ] || { [ -d "$p" ] && [ -d "$work" ] && [ "$p" -ef "$work" ]; }; then
-    echo "publish: removing a stale worktree registration at $p"
-    git worktree remove --force "$p"
-  fi
-done < <(git worktree list --porcelain | sed -n 's/^worktree //p')
 
 git worktree add --quiet "$work" gh-pages
 mkdir -p "$work/v1"

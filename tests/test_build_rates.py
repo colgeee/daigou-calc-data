@@ -175,7 +175,7 @@ def test_main_prints_the_five_sections(tmp_path, monkeypatch, capsys):
 
 
 def test_summary_counts_the_state_rate_only_states(capsys):
-    """Decision #25: the summary names the states published at the state rate alone, so a
+    """Decision #26: the summary names the states published at the state rate alone, so a
     local-rate adapter that silently disappears -- or newly lands -- shows in the log."""
     c = Census(centroids={"80202": (39.75, -104.99), "90012": (34.05, -118.24)},
                county={"80202": ("08031", "Denver County"),

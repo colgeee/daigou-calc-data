@@ -70,7 +70,7 @@ states:
   WI: {grocery: exempt, prescription: exempt}
   WV: {prescription: exempt}                                # grocery via foodDrugRate
   WY: {grocery: exempt, prescription: exempt}
-  # ---- state rate published, local rates still to come (decision #25) ----
+  # ---- state rate published, local rates still to come (decision #26) ----
   SC: {localCoverage: false, grocery: exempt}                 # Phase 2: flip to true when the local-rate adapter lands
   MO: {localCoverage: false, grocery: {stateReplaced: "0.01225"}, confidence: {grocery: medium}}  # Phase 2: flip to true when the local-rate adapter lands
   AZ: {localCoverage: false, grocery: exempt, confidence: {grocery: medium}}  # Phase 2: flip to true when the local-rate adapter lands

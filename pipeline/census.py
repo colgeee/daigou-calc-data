@@ -39,7 +39,7 @@ _PLACE_SUFFIX = re.compile(
     r"consolidated government|metro government|urban county|metropolitan government|"
     r"unified government|corporation)$"
 )
-_COUNTY_SUFFIX = re.compile(r"\s+(County|Parish|Borough|Census Area|Municipio)$")
+_COUNTY_SUFFIX = re.compile(r"\s+(County|Parish|Borough|Census Area|Municipio|Municipality)$")
 # Label-only cleanup the join key must not get (F1/F2): a Census `NAMELSAD` sometimes
 # parenthesises which part of a consolidated city-county government a record covers --
 # ``Indianapolis city (balance)`` -- and Alaska's independent boroughs spell their type

@@ -35,7 +35,7 @@ to publish a full build under 25 000. 42 states + DC carry local rates; CO, LA, 
 so the app asks for the local rate.
 
 A flagged state still gets a row per Census ZIP, at its state rate with a zero local rate
-(decision #25); the app reads the `localCoverage: false` flag and shows "unsupported area —
+(decision #26); the app reads the `localCoverage: false` flag and shows "unsupported area —
 set your own rate". Publishing no rows at all would leave it unable to place the ZIP, so the
 same phone would see "couldn't get a location" instead.
 

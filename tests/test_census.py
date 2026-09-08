@@ -135,6 +135,24 @@ def test_county_display_drops_independent_city_and_city_and_borough():
     assert county_short("Williamsburg city") == "WILLIAMSBURG CITY"
 
 
+def test_county_display_and_short_strip_standalone_municipality():
+    """F2 (fix round 1): Alaska's Skagway and Anchorage boroughs are organized as a
+    standalone `Municipality` -- not `Borough` or the two-word `City and Borough` phrase
+    `_CITY_AND_BOROUGH_SUFFIX` already covers -- which `_COUNTY_SUFFIX` did not previously
+    match, so the label kept the trailing word (`Skagway Municipality, AK`)."""
+    c = Census(
+        centroids={},
+        county={
+            "1": ("02230", "Skagway Municipality"), "2": ("02020", "Anchorage Municipality"),
+        },
+        place={},
+    )
+    assert c.county_display("1") == "Skagway"
+    assert c.county_display("2") == "Anchorage"
+    assert county_short("Skagway Municipality") == "SKAGWAY"
+    assert county_short("Anchorage Municipality") == "ANCHORAGE"
+
+
 def test_capitalised_city_in_a_proper_name_survives_the_suffix_strip():
     """Live bug: ZIPs 89701/89703 (Carson City, NV) labelled as `Carson, NV` because the
     suffix strip matched the LSAD word `city` case-insensitively, so it also stripped the

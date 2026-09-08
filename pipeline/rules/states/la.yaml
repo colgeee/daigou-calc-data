@@ -1,4 +1,4 @@
-# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #26).
 # State rate is 5 % from 2025-01-01 under Act 11 of 2024.
 state: LA
 state_rate: "0.05"

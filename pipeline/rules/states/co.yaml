@@ -1,4 +1,4 @@
-# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #26).
 state: CO
 state_rate: "0.029"
 food_drug_rate: null
