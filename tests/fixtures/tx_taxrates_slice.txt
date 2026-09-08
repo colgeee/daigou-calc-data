@@ -1,0 +1,6 @@
+1	20263	202609	2026 - 3rd	0.0625	0	3715	notice text
+Abilene 	2221012	0.02	Jones 	n/a	0	n/a	n/a	0	n/a	n/a	0
+Abilene 	2221012	0.02	Taylor 	n/a	0	n/a	n/a	0	n/a	n/a	0
+Addison 	2057217	0.01	Dallas 	n/a	0	n/a	n/a	0	Dallas MTA 	3057994	0.01
+Acton 	n/a	0	Hood 	4111006	0.005	Hood Co Dev Dist 1 	5111505	0.005	n/a	n/a	0
+Dallas 	2057207	0.01	Dallas 	n/a	0	n/a	n/a	0	Dallas MTA 	3057994	0.01
