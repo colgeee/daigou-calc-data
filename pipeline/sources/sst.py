@@ -139,6 +139,7 @@ def compose(
     if st is None:
         raise ValueError(f"{state}: no current state-level (45) rate row")
     best: dict[str, ZipRate] = {}
+    in_state: list[str] | None = None
     for z in zips:
         if not (z.begin <= on <= z.end):
             continue
@@ -153,12 +154,27 @@ def compose(
             if (2, code) in cur:
                 general += cur[(2, code)].general
                 food += cur[(2, code)].food
-        for zip5 in _zip_range(z.zip_low, z.zip_high):
+        lo = z.zip_low.zfill(5)
+        hi = (z.zip_high or z.zip_low).zfill(5)
+        if int(hi) - int(lo) > 100:
+            # IN/KY/MI/NJ/RI cover the whole state with one wide Z row; enumerating it
+            # would walk thousands of numbers that are not ZIPs, so ask the census.
+            if in_state is None:
+                in_state = census.zips_in_state(STATES[state])
+            candidates: Iterable[str] = [z5 for z5 in in_state if lo <= z5 <= hi]
+        else:
+            candidates = _zip_range(lo, hi)
+        for zip5 in candidates:
             if zip5 not in census.centroids:
                 continue
             name = census.place_name(zip5) or census.county_name(zip5) or state
             label = f"{name.title()}, {state}"
-            cand = ZipRate(zip5, state, st.general, general - st.general, food, label)
+            # The food/drug columns repeat the general rate where a state has no reduced
+            # grocery rate; that is not a food rate, so only a genuinely lower one is kept.
+            cand = ZipRate(
+                zip5, state, st.general, general - st.general,
+                None if food == general else food, label,
+            )
             if zip5 not in best or cand.general_rate > best[zip5].general_rate:
                 best[zip5] = cand
     return sorted(best.values(), key=lambda r: r.zip)

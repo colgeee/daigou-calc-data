@@ -76,6 +76,45 @@ def test_compose_sums_state_county_place_districts_and_keeps_highest_current_row
     assert out["98002"].local_rate == D("0.056")
 
 
+def ri_census():
+    """RI-shaped census: one out-of-state ZIP, one in-state ZIP with no centroid."""
+    counties = {
+        "01001": "25013", "02801": "44005", "02840": "44005",
+        "02888": "44007", "02940": "44007", "02999": "44007",
+    }
+    return Census(
+        centroids={z: (41.5, -71.3) for z in counties if z != "02888"},
+        county={z: (g, "Newport County") for z, g in counties.items()},
+        place={"02840": ("4404950", "Newport city")},
+    )
+
+
+def test_compose_expands_a_wide_statewide_range_from_the_census():
+    # IN/KY/MI/NJ/RI ship a single statewide Z row; RI writes its low ZIP with 4 digits.
+    rates = sst.parse_rate_file("44,45,44,0.07000,0.07000,0.07000,0.07000,19830301,99991231\n")
+    zs = [sst.ZipRow("2801", "2940", "", "", (), date(2024, 4, 1), sst.OPEN_END)]
+    out = sst.compose("RI", rates, zs, ri_census(), ON)
+    # 01001 is out of state, 02999 is above the range, 02888 has no centroid
+    assert [r.zip for r in out] == ["02801", "02840", "02940"]
+    assert all(r.state_rate == D("0.07") and r.local_rate == D(0) for r in out)
+    assert out[0].label == "Newport, RI"
+
+
+def test_compose_drops_the_food_rate_when_it_equals_the_general_rate():
+    # The live files repeat the general rate in the food/drug columns wherever the state
+    # has no reduced grocery rate, so the composed food rate is not a food rate at all.
+    text = (FX / "sst_wa_rate.csv").read_text().replace(
+        "53,00,051,0.01200,0.01200,0.00000,0.00000",
+        "53,00,051,0.01200,0.01200,0.01200,0.01200",
+    )
+    rates = sst.parse_rate_file(text)
+    zs = sst.parse_boundary_zips((FX / "sst_wa_boundary.csv").read_text())
+    out = {r.zip: r for r in sst.compose("WA", rates, zs, census(), ON)}
+    assert out["83856"].general_rate == D("0.077")
+    assert out["83856"].food_drug_rate is None
+    assert out["98001"].food_drug_rate == D("0.065")  # still a genuinely reduced rate
+
+
 def test_compose_skips_zips_without_a_current_row_or_centroid():
     rates = sst.parse_rate_file((FX / "sst_wa_rate.csv").read_text())
     zs = sst.parse_boundary_zips((FX / "sst_wa_boundary.csv").read_text())
