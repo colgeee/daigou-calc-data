@@ -1,0 +1,10 @@
+state: HI
+state_rate: "0.04"
+food_drug_rate: null
+county_rates:                 # FIPS5 -> county surcharge; Maui (15009) has none
+  "15003": "0.005"            # Honolulu
+  "15001": "0.005"            # Hawaii
+  "15007": "0.005"            # Kauai
+place_rates: {}
+source: https://tax.hawaii.gov/geninfo/apx1/
+checked: 2026-09-08

@@ -1,0 +1,7 @@
+state: CT
+state_rate: "0.0635"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://portal.ct.gov/drs
+checked: 2026-09-08

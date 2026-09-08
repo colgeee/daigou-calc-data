@@ -1,0 +1,7 @@
+state: NH
+state_rate: "0"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://www.revenue.nh.gov/
+checked: 2026-09-08

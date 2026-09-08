@@ -1,0 +1,51 @@
+state: VA
+state_rate: "0.053"
+food_drug_rate: null
+county_rates:                 # FIPS5 -> additional regional local rate
+  # Northern Virginia (0.007)
+  "51510": "0.007"            # Alexandria city
+  "51013": "0.007"            # Arlington County
+  "51600": "0.007"            # Fairfax city
+  "51059": "0.007"            # Fairfax County
+  "51610": "0.007"            # Falls Church city
+  "51107": "0.007"            # Loudoun County
+  "51683": "0.007"            # Manassas city
+  "51685": "0.007"            # Manassas Park city
+  "51153": "0.007"            # Prince William County
+  # Hampton Roads (0.007) -- James City, Williamsburg, York already at 0.017 below
+  "51550": "0.007"            # Chesapeake city
+  "51620": "0.007"            # Franklin city
+  "51650": "0.007"            # Hampton city
+  "51093": "0.007"            # Isle of Wight County
+  "51700": "0.007"            # Newport News city
+  "51710": "0.007"            # Norfolk city
+  "51735": "0.007"            # Poquoson city
+  "51740": "0.007"            # Portsmouth city
+  "51175": "0.007"            # Southampton County
+  "51800": "0.007"            # Suffolk city
+  "51810": "0.007"            # Virginia Beach city
+  # Central Virginia (0.007)
+  "51036": "0.007"            # Charles City County
+  "51041": "0.007"            # Chesterfield County
+  "51075": "0.007"            # Goochland County
+  "51085": "0.007"            # Hanover County
+  "51087": "0.007"            # Henrico County
+  "51127": "0.007"            # New Kent County
+  "51145": "0.007"            # Powhatan County
+  "51760": "0.007"            # Richmond city
+  # Historic Triangle (0.017)
+  "51095": "0.017"            # James City County
+  "51830": "0.017"            # Williamsburg city
+  "51199": "0.017"            # York County
+  # Southern/Southside Virginia (0.01)
+  "51037": "0.01"             # Charlotte County
+  "51590": "0.01"             # Danville city
+  "51073": "0.01"             # Gloucester County
+  "51083": "0.01"             # Halifax County
+  "51089": "0.01"             # Henry County
+  "51131": "0.01"             # Northampton County
+  "51141": "0.01"             # Patrick County
+  "51143": "0.01"             # Pittsylvania County
+place_rates: {}
+source: https://www.tax.virginia.gov/retail-sales-and-use-tax
+checked: 2026-09-08

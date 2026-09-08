@@ -1,0 +1,7 @@
+state: MA
+state_rate: "0.0625"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://www.mass.gov/guides/sales-and-use-tax
+checked: 2026-09-08

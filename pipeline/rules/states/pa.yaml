@@ -1,0 +1,9 @@
+state: PA
+state_rate: "0.06"
+food_drug_rate: null
+county_rates:                 # FIPS5 -> additional local rate
+  "42101": "0.02"             # Philadelphia
+  "42003": "0.01"             # Allegheny
+place_rates: {}
+source: https://www.revenue.pa.gov/TaxTypes/SUT/Pages/default.aspx
+checked: 2026-09-08

@@ -1,0 +1,7 @@
+state: ME
+state_rate: "0.055"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://www.maine.gov/revenue/taxes/sales-use-service-provider-tax
+checked: 2026-09-08

@@ -1,0 +1,7 @@
+state: DC
+state_rate: "0.06"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://otr.cfo.dc.gov/page/sales-and-use-tax
+checked: 2026-09-08

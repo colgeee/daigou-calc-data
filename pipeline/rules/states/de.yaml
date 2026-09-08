@@ -1,0 +1,7 @@
+state: DE
+state_rate: "0"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://revenue.delaware.gov/
+checked: 2026-09-08
