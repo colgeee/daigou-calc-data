@@ -1,0 +1,77 @@
+# Category treatment per state. Keys: grocery, clothing, prescription, supplement, alcohol.
+# Omitted key = general rate, except for grocery/prescription in the states that publish a
+# per-ZIP food/drug rate, where that per-ZIP rate applies.
+# An explicit rule here always wins; the per-ZIP food/drug rate is only the fallback when this
+# file is silent (app decision #22).  Hence:
+#   1. every Streamlined (SST) member state states `prescription: exempt` explicitly -- all 24
+#      exempt prescription drugs, so the SST "food/drug" column must never be applied to Rx.
+#      Illinois is the one exception: it taxes Rx at its reduced 1% rate, which is exactly the
+#      per-ZIP food/drug rate, so IL omits `prescription`.
+#   2. SST states whose food rate equals their general rate publish no foodDrugRate, so they
+#      carry an explicit grocery rule (`exempt`, or `general` for South Dakota).  The nine SST
+#      states with a reduced food rate -- AR GA IA KS NC OK TN UT WV -- and IL omit `grocery`
+#      so the per-ZIP food rate applies.
+# checked: 2026-09-08 (state DOR pages)
+defaults:
+  prescription: exempt          # prescription drugs are exempt in every state below unless overridden
+  supplement: general
+  alcohol: general
+  confidence: {supplement: medium}
+states:
+  # ---- no coverage of local rates (decision #2 in the app spec) ----
+  CO: {localCoverage: false, grocery: exempt, confidence: {supplement: low, alcohol: low}}
+  LA: {localCoverage: false, grocery: localOnly, confidence: {grocery: low, supplement: low, alcohol: low}}
+  AL: {localCoverage: false, grocery: {stateReplaced: "0.03"}, confidence: {grocery: medium, supplement: low, alcohol: low}}
+  AK: {localCoverage: false, grocery: general, confidence: {grocery: low, supplement: low, alcohol: low}}
+  # ---- no sales tax ----
+  DE: {grocery: exempt}
+  MT: {grocery: exempt}
+  NH: {grocery: exempt}
+  OR: {grocery: exempt}
+  # ---- YAML states ----
+  PA: {grocery: exempt, clothing: exempt}
+  MA: {grocery: exempt, clothing: {threshold: {limit: "175", above: general}}}
+  CT: {grocery: exempt, clothing: general, confidence: {alcohol: medium}}
+  MD: {grocery: exempt, alcohol: {combined: "0.09"}}
+  ME: {grocery: exempt}
+  MS: {grocery: general, confidence: {grocery: high, supplement: medium}}
+  ID: {grocery: general, confidence: {grocery: high, supplement: medium, alcohol: medium}}
+  HI: {grocery: general}
+  DC: {grocery: exempt, alcohol: {combined: "0.1025"}}
+  VA: {grocery: {combined: "0.01"}, confidence: {grocery: high}}
+  # ---- parsed states ----
+  CA: {grocery: exempt}
+  TX: {grocery: exempt, confidence: {supplement: medium}}
+  IL: {confidence: {supplement: low}}                       # grocery & Rx via foodDrugRate (1%)
+  NY: {grocery: exempt, clothing: {threshold: {limit: "110", above: general}}, confidence: {clothing: medium}}
+  FL: {grocery: exempt}
+  # ---- SST states (Rx always explicit; grocery explicit unless a reduced food rate applies) ----
+  AR: {prescription: exempt}                                # grocery via foodDrugRate
+  GA: {prescription: exempt}                                # grocery via foodDrugRate
+  IA: {prescription: exempt}                                # grocery via foodDrugRate
+  IN: {grocery: exempt, prescription: exempt}
+  KS: {prescription: exempt}                                # grocery via foodDrugRate
+  KY: {grocery: exempt, prescription: exempt}
+  MI: {grocery: exempt, prescription: exempt}
+  MN: {grocery: exempt, prescription: exempt, clothing: exempt, alcohol: {surcharge: "0.025"}}
+  NC: {prescription: exempt}                                # grocery via foodDrugRate
+  ND: {grocery: exempt, prescription: exempt}
+  NE: {grocery: exempt, prescription: exempt}
+  NJ: {grocery: exempt, prescription: exempt, clothing: exempt}
+  NV: {grocery: exempt, prescription: exempt}
+  OH: {grocery: exempt, prescription: exempt}
+  OK: {prescription: exempt}                                # grocery via foodDrugRate
+  RI: {grocery: exempt, prescription: exempt, clothing: {threshold: {limit: "250", above: general}}}
+  SD: {grocery: general, prescription: exempt}              # SD taxes groceries at the full rate
+  TN: {prescription: exempt, confidence: {supplement: low}} # grocery via foodDrugRate
+  UT: {prescription: exempt, confidence: {supplement: low}} # grocery via foodDrugRate
+  VT: {grocery: exempt, prescription: exempt, clothing: exempt}
+  WA: {grocery: exempt, prescription: exempt}
+  WI: {grocery: exempt, prescription: exempt}
+  WV: {prescription: exempt}                                # grocery via foodDrugRate
+  WY: {grocery: exempt, prescription: exempt}
+  # ---- Phase 2 states (no ZIPs yet; rules ready) ----
+  SC: {grocery: exempt}
+  MO: {grocery: {stateReplaced: "0.01225"}, confidence: {grocery: medium}}
+  AZ: {grocery: exempt, confidence: {grocery: medium}}
+  NM: {grocery: exempt, confidence: {grocery: medium}}
