@@ -47,7 +47,7 @@ _ROW = re.compile(
 # sign must not leave a county filed as `ONEIDA – EXCEPT`, a name no ZIP can ever join to
 # and one that would silently take every unincorporated ZIP in the county to the dropped
 # counter.
-_DASH = re.compile(r"[‐-―−-]")  # U+2010..U+2015, U+2212 and the ASCII hyphen
+_DASH = re.compile(r"[\u2010-\u2015\u2212-]")  # U+2010..U+2015, U+2212 and the ASCII hyphen
 _EXCEPT = re.compile(r"\s*-\s*except$", re.I)
 
 

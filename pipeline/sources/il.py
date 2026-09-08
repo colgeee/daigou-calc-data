@@ -199,11 +199,16 @@ class IlAdapter:
             # reduced rate, so `food_drug_rate` is always published, never collapsed to
             # None the way an SST state's equal-to-general rate is.
             yield ZipRate(zip5, "IL", STATE_RATE, _local(row, gm), dm, label)
+        note = ""
+        if uncovered:
+            zips = "ZIP" if uncovered == 1 else "ZIPs"
+            note = (
+                f" ({uncovered} {zips} took the current period's rate because neither "
+                f"period the record carries covers {on})"
+            )
         print(
             f"[il] {matched} ZIPs matched a municipality, {fell_back} fell back to their "
-            f"county's rate, {no_row} dropped with no municipality or county row "
-            f"({uncovered} took the current period's rate because neither period the "
-            f"record carries covers {on})"
+            f"county's rate, {no_row} dropped with no municipality or county row{note}"
         )
 
 

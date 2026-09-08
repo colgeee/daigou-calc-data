@@ -52,9 +52,12 @@ def test_ms_place_rate_and_va_regions():
 
 
 def test_labels_keep_the_census_casing():
-    """C1: `McKeesport`, `DuBois` and the independent city `Williamsburg city` all come
-    out of the Census with their own casing; `.title()` on the uppercased join name gave
-    `Mckeesport` and `Dubois`. A ZIP the place file does not name reads as its county."""
+    """C1: `McKeesport`, `DuBois` and the independent city `Williamsburg` all come out of
+    the Census with their own casing; `.title()` on the uppercased join name gave
+    `Mckeesport` and `Dubois`. A ZIP the place file does not name reads as its county.
+    Williamsburg's trailing ` city` marker is dropped for the label (F2); the join key
+    that priced it still carries it, which is what keeps it apart from a same-named
+    county elsewhere."""
     c = Census(
         centroids={"15132": (40.34, -79.86), "15801": (41.12, -78.76), "23185": (37.27, -76.7),
                    "17545": (40.17, -76.42)},
@@ -65,7 +68,7 @@ def test_labels_keep_the_census_casing():
     rows = {r.zip: r for r in yaml_states.YamlStatesAdapter().rows(c, date(2026, 9, 8))}
     assert rows["15132"].label == "McKeesport, PA"
     assert rows["15801"].label == "DuBois, PA"
-    assert rows["23185"].label == "Williamsburg city, VA"  # an independent city is a county
+    assert rows["23185"].label == "Williamsburg, VA"  # an independent city is a county
     assert rows["17545"].label == "Lancaster, PA"          # no place: the county
 
 

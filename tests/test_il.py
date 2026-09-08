@@ -212,7 +212,18 @@ def test_rows_fall_back_to_the_current_period_and_count_a_date_neither_covers(
     monkeypatch.setattr(il, "_fetch_text", lambda: LIVE_CHICAGO_COOK)
     rows = list(il.IlAdapter().rows(_chicago_census(), date(2015, 1, 1)))
     assert [(r.local_rate, r.food_drug_rate) for r in rows] == [(D("0.0425"), D("0.025"))]
-    assert "1 took the current period's rate" in capsys.readouterr().out
+    assert "1 ZIP took the current period's rate" in capsys.readouterr().out
+
+
+def test_the_uncovered_note_is_worded_per_zip_and_omitted_when_zero(monkeypatch, capsys):
+    """F3: the parenthetical only means anything when a build actually fell back, so it
+    is dropped from the line entirely rather than printed as `(0 ZIPs took ...)`, and its
+    count agrees in number with the noun it modifies."""
+    monkeypatch.setattr(il, "_fetch_text", lambda: LIVE_CHICAGO_COOK)
+    list(il.IlAdapter().rows(_chicago_census(), date(2026, 9, 8)))
+    out = capsys.readouterr().out
+    assert "took the current period's rate" not in out
+    assert out.rstrip().endswith("county row")
 
 
 def test_county_fallback_joins_saint_clair_through_the_shared_join_key(monkeypatch):

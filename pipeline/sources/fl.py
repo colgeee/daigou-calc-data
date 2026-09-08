@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import io
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import date
 from decimal import Decimal
 
@@ -52,10 +52,14 @@ def _fetch_lines() -> list[str]:
     return [ln for p in reader.pages for ln in (p.extract_text() or "").splitlines()]
 
 
-def parse_lines(lines: Iterable[str]) -> dict[str, Decimal]:
+def parse_lines(lines: Sequence[str]) -> dict[str, Decimal]:
     """Read the DR-15DSS rate table into uppercase county name -> surtax fraction. A
     county with no surtax is filed as `Citrus None` and maps to zero, not to a missing
     key: Florida still taxes it, at the 6 % state rate alone.
+
+    Takes a `Sequence` rather than an `Iterable`: `FlAdapter.rows` passes the same
+    `lines` here and to `check_calendar_year` in turn, so it has to survive being read
+    twice, which a single-use iterable (a generator, say) would not (F3).
 
     Raises ``ValueError`` if implausibly few county rows parse -- a sign the PDF's text
     layout shifted or the fetch returned something other than the form (F3)."""
@@ -79,7 +83,7 @@ def parse_lines(lines: Iterable[str]) -> dict[str, Decimal]:
     return out
 
 
-def check_calendar_year(lines: Iterable[str], on: date) -> int:
+def check_calendar_year(lines: Sequence[str], on: date) -> int:
     """Return the calendar year the form is published for, having checked it is not stale.
 
     Raises ``ValueError`` if the year is more than one behind `on`'s, or if the title

@@ -28,10 +28,17 @@ STATE_FIPS: dict[str, str] = {
 
 _PLACE_SUFFIX = re.compile(
     r"\s+(city|town|village|borough|CDP|municipality|city and borough|"
-    r"consolidated government|metro government|urban county|metropolitan government)$",
+    r"consolidated government|metro government|urban county|metropolitan government|"
+    r"unified government|corporation)$",
     re.I,
 )
 _COUNTY_SUFFIX = re.compile(r"\s+(County|Parish|Borough|Census Area|Municipio)$", re.I)
+# Label-only cleanup the join key must not get (F1/F2): a Census `NAMELSAD` sometimes
+# parenthesises which part of a consolidated city-county government a record covers --
+# ``Indianapolis city (balance)`` -- and Alaska's independent boroughs spell their type
+# word as a two-word phrase `_COUNTY_SUFFIX` cannot anchor a single trailing word on.
+_BALANCE_SUFFIX = re.compile(r"\s+\(balance\)$", re.I)
+_CITY_AND_BOROUGH_SUFFIX = re.compile(r"\s+City and Borough$", re.I)
 
 
 def parse_gazetteer(text: str) -> dict[str, tuple[float, float]]:
@@ -126,8 +133,11 @@ class Census:
     name kept exactly as it is published -- ``DuPage County``, ``O'Fallon city``,
     ``McKinney city``, ``Cañon City city``. `county_name`/`place_name` fold that to the
     uppercase name the rate-file joins key on; `county_display`/`place_display` keep the
-    casing, which is what every adapter's label uses (C1). Re-casing an uppercased name
-    with `display_name` is the fallback for a ZIP the relationship files do not name."""
+    casing, which is what every adapter's label uses (C1), and additionally drop the
+    Census entity phrasing a join key must keep untouched -- a trailing ``(balance)``,
+    ``unified government``, ``City and Borough`` and the like (F1/F2). Re-casing an
+    uppercased name with `display_name` is the fallback for a ZIP the relationship files
+    do not name."""
 
     centroids: dict[str, tuple[float, float]]
     county: dict[str, tuple[str, str]]
@@ -157,11 +167,19 @@ class Census:
         return None if c is None else county_short(c[1])
 
     def county_display(self, zcta: str) -> str | None:
-        """`county_name`'s short form with the Census file's casing kept: ``DuPage``,
-        ``DeSoto``, ``LaSalle``, ``St. Clair``, and ``Fairfax city`` for an independent
-        city, which is a county in its own right."""
+        """`county_name`'s short form with the Census file's casing kept, but shaped for
+        a label rather than a join key (F2): an independent city drops its trailing
+        ` city` (``Williamsburg city`` -> ``Williamsburg``; `county_short`, the join key,
+        keeps it, which is what tells Fairfax city apart from Fairfax County), and
+        Alaska's ``... City and Borough`` entities drop that whole phrase (``Juneau City
+        and Borough`` -> ``Juneau``). Otherwise strips the same `_COUNTY_SUFFIX` as
+        `county_short`: ``DuPage``, ``DeSoto``, ``LaSalle``, ``St. Clair``."""
         c = self.county.get(zcta)
-        return None if c is None else _county_short(c[1])
+        if c is None:
+            return None
+        n = _CITY_AND_BOROUGH_SUFFIX.sub("", c[1].strip())
+        n = re.sub(r"\s+city$", "", n, flags=re.I)
+        return re.sub(r"\s+", " ", _COUNTY_SUFFIX.sub("", n))
 
     def county_fips3(self, zcta: str) -> str | None:
         c = self.county.get(zcta)
@@ -172,10 +190,19 @@ class Census:
         return None if p is None else normalize_place(p[1])
 
     def place_display(self, zcta: str) -> str | None:
-        """`place_name` with the Census file's casing kept: ``McKinney``, ``O'Fallon``,
-        ``DeKalb``, ``Cañon City``."""
+        """`place_name` with the Census file's casing kept, plus label-only cleanup the
+        join key does not get (F1): a trailing ` (balance)` is dropped, then any trailing
+        entity phrase `_PLACE_SUFFIX` covers, and a name split by a `/` (a jointly-named
+        city/county government) keeps only the part before it. ``McKinney city`` ->
+        ``McKinney``, ``O'Fallon`` -> ``O'Fallon``, ``DeKalb`` -> ``DeKalb``,
+        ``Cañon City`` -> ``Cañon City``, ``Indianapolis city (balance)`` ->
+        ``Indianapolis``, ``Louisville/Jefferson County metro government (balance)`` ->
+        ``Louisville``."""
         p = self.place.get(zcta)
-        return None if p is None else _place_short(p[1])
+        if p is None:
+            return None
+        name = _place_short(_BALANCE_SUFFIX.sub("", p[1].strip()))
+        return name.split("/", 1)[0].strip() if "/" in name else name
 
     def place_fips5(self, zcta: str) -> str | None:
         p = self.place.get(zcta)

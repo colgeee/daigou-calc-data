@@ -47,10 +47,11 @@ def test_normalizers():
 
 
 def test_display_forms_strip_the_same_suffixes_but_keep_the_census_casing():
-    """`county_display`/`place_display` mirror `county_short`/`normalize_place` exactly --
-    same suffixes stripped, an independent city still keeping its ` city` -- and differ
-    only in that they do not uppercase, which is the whole point: the label keeps the
-    casing the Census publishes instead of having it guessed back by `display_name`."""
+    """`county_display`/`place_display` mirror `county_short`/`normalize_place`'s suffix
+    stripping and differ only in that they do not uppercase -- the label keeps the casing
+    the Census publishes instead of having it guessed back by `display_name` -- except for
+    an independent city, where the display form drops the trailing ` city` the join key
+    keeps (F2; `Fairfax city` vs `Fairfax` are covered on their own below)."""
     c = Census(
         centroids={},
         county={
@@ -65,13 +66,73 @@ def test_display_forms_strip_the_same_suffixes_but_keep_the_census_casing():
         },
     )
     assert [c.county_display(z) for z in "123456"] == [
-        "DuPage", "Orleans", "Fairfax city", "DeSoto", "LaSalle", "St. Clair"]
+        "DuPage", "Orleans", "Fairfax", "DeSoto", "LaSalle", "St. Clair"]
     assert [c.county_name(z) for z in "123456"] == [
         "DUPAGE", "ORLEANS", "FAIRFAX CITY", "DESOTO", "LASALLE", "ST. CLAIR"]
     assert [c.place_display(z) for z in "12345"] == [
         "O'Fallon", "Cañon City", "DeKalb", "Candler-McAfee", "McConnell AFB"]
     assert [c.place_name(z) for z in "12345"] == [
         "O'FALLON", "CAÑON CITY", "DEKALB", "CANDLER-MCAFEE", "MCCONNELL AFB"]
+
+
+def test_place_display_drops_balance_and_entity_phrases_the_join_key_keeps():
+    """F1: 107 live ZIPs carry a Census entity phrase the plain suffix strip cannot
+    reach, because it sits before a trailing `(balance)` parenthetical or, for a
+    consolidated city/county, before a `/`-joined second name. `place_display` cleans
+    all of it up for the label; `normalize_place`, the join key, is left alone wherever
+    `(balance)` blocks the suffix match -- exactly the exhaustive live list."""
+    raw = {
+        "indianapolis": "Indianapolis city (balance)",
+        "nashville": "Nashville-Davidson metropolitan government (balance)",
+        "louisville": "Louisville/Jefferson County metro government (balance)",
+        "augusta": "Augusta-Richmond County consolidated government (balance)",
+        "athens": "Athens-Clarke County unified government (balance)",
+        "butte": "Butte-Silver Bow (balance)",
+        "milford": "Milford city (balance)",
+        "cusseta": "Cusseta-Chattahoochee County unified government",
+        "webster": "Webster County unified government",
+        "georgetown": "Georgetown-Quitman County unified government",
+        "greeley": "Greeley County unified government (balance)",
+        "ranson": "Ranson corporation",
+    }
+    c = Census(centroids={}, county={}, place={k: ("0", v) for k, v in raw.items()})
+    assert {k: c.place_display(k) for k in raw} == {
+        "indianapolis": "Indianapolis",
+        "nashville": "Nashville-Davidson",
+        "louisville": "Louisville",
+        "augusta": "Augusta-Richmond County",
+        "athens": "Athens-Clarke County",
+        "butte": "Butte-Silver Bow",
+        "milford": "Milford",
+        "cusseta": "Cusseta-Chattahoochee County",
+        "webster": "Webster County",
+        "georgetown": "Georgetown-Quitman County",
+        "greeley": "Greeley County",
+        "ranson": "Ranson",
+    }
+    # The join key is untouched wherever a trailing `(balance)` blocks `_PLACE_SUFFIX`
+    # from matching at all -- no rate can move for these, only the label -- and it picks
+    # up the two new suffixes only where nothing else in the name shields them.
+    assert normalize_place(raw["indianapolis"]) == "INDIANAPOLIS CITY (BALANCE)"
+    assert normalize_place(raw["athens"]) == "ATHENS-CLARKE COUNTY UNIFIED GOVERNMENT (BALANCE)"
+    assert normalize_place(raw["ranson"]) == "RANSON"
+    assert normalize_place(raw["cusseta"]) == "CUSSETA-CHATTAHOOCHEE COUNTY"
+
+
+def test_county_display_drops_independent_city_and_city_and_borough():
+    """F2: an independent city's ` city` marker and Alaska's `City and Borough` phrase
+    are both dropped for the label; the join key (`county_short`) keeps the former so
+    Fairfax city and Fairfax County never collide."""
+    c = Census(
+        centroids={},
+        county={
+            "1": ("51830", "Williamsburg city"), "2": ("02110", "Juneau City and Borough"),
+        },
+        place={},
+    )
+    assert c.county_display("1") == "Williamsburg"
+    assert c.county_display("2") == "Juneau"
+    assert county_short("Williamsburg city") == "WILLIAMSBURG CITY"
 
 
 def test_join_key_folds_the_spellings_the_rate_files_disagree_on():
