@@ -1,4 +1,10 @@
-"""Illinois: IDOR fixed-width county/municipality rate file (spec §3.5)."""
+"""Illinois: IDOR fixed-width county/municipality rate file (spec §3.5).
+
+The 18 records whose "rate varies" flag is set -- the Metro-East jurisdictions in
+St. Clair and Madison counties, where a business district or a home-rule sliver taxes
+some addresses above the rest -- are published at their low rate, the one every other
+address in the jurisdiction pays.
+"""
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -27,24 +33,52 @@ MIN_DATA_ROWS = 1200
 MIN_COUNTY_ROWS = 90
 
 # Fixed-width record layout, 211 characters per line. Header: location id [0:10], name
-# [10:35], county [35:60], address-override flag [60], effective date [61:69]. Then THREE
-# 21-character rate groups for the current period -- high general merchandise, high
-# food/drug, low general merchandise, low food/drug, "rate varies" flag, each rate an
-# implied five-digit fraction of 100 000 (``07750`` = 7.750%) -- followed by a prior
-# period's date range and its own three groups. Only the first group of the current
-# period holds a jurisdiction's own retail rates, so the adapter reads its low pair.
+# [10:35], county [35:60], address-override flag [60], the current period's start date
+# [61:69]. Then THREE 21-character rate groups for that period -- high general
+# merchandise, high food/drug, low general merchandise, low food/drug, "rate varies"
+# flag, each rate an implied five-digit fraction of 100 000 (``07750`` = 7.750%) --
+# followed by the PRIOR period's start and end dates [132:140] and [140:148] and its own
+# three groups. Only the first group of a period holds a jurisdiction's own retail rates,
+# so the adapter reads that group's low pair, from whichever period covers the build date.
 _OVERRIDE_FLAG = 60
+_BEGIN = slice(61, 69)
 _GM_LOW = slice(79, 84)
 _DM_LOW = slice(84, 89)
+_PRIOR_BEGIN = slice(132, 140)
+_PRIOR_END = slice(140, 148)
+_PRIOR_GM_LOW = slice(158, 163)
+_PRIOR_DM_LOW = slice(163, 168)
 
 
 @dataclass(frozen=True)
 class IlRow:
+    """A jurisdiction's two published rate periods: the current one, open-ended from
+    `begin`, and the prior one, `prior_begin` to `prior_end` inclusive."""
+
     location_id: str
     name: str
     county: str
+    begin: date | None
     gm_low: Decimal
     dm_low: Decimal
+    prior_begin: date | None = None
+    prior_end: date | None = None
+    prior_gm_low: Decimal = Decimal(0)
+    prior_dm_low: Decimal = Decimal(0)
+
+    def rates(self, on: date) -> tuple[Decimal, Decimal, bool]:
+        """The (general merchandise, food/drug) pair in force on `on`, and whether a
+        period actually covered it. The current period runs from `begin` with no end, so
+        it answers for every build date at or after it; otherwise the prior period does,
+        if `on` falls inside it. A date before both -- a back-dated build of a
+        jurisdiction incorporated since -- has no published rate at all, so the current
+        one stands in and the caller counts it. A record with no readable start date is
+        read as current, which is what the synthetic fixtures rely on."""
+        if self.begin is None or on >= self.begin:
+            return self.gm_low, self.dm_low, True
+        if self.prior_begin and self.prior_end and self.prior_begin <= on <= self.prior_end:
+            return self.prior_gm_low, self.prior_dm_low, True
+        return self.gm_low, self.dm_low, False
 
 
 def _fetch_text() -> str:
@@ -53,6 +87,17 @@ def _fetch_text() -> str:
 
 def _v99999(s: str) -> Decimal:
     return Decimal(s.strip() or "0") / Decimal(100000)
+
+
+def _date8(s: str) -> date | None:
+    """``YYYYMMDD``, or None where the field is blank or not a date."""
+    s = s.strip()
+    if len(s) != 8 or not s.isdigit():
+        return None
+    try:
+        return date(int(s[:4]), int(s[4:6]), int(s[6:8]))
+    except ValueError:
+        return None
 
 
 def parse(text: str) -> list[IlRow]:
@@ -77,8 +122,12 @@ def parse(text: str) -> list[IlRow]:
         county = line[35:60].strip().upper()
         if not county:
             continue
-        out.append(IlRow(line[0:10].strip(), line[10:35].strip().upper(), county,
-                         _v99999(line[_GM_LOW]), _v99999(line[_DM_LOW])))
+        out.append(IlRow(
+            line[0:10].strip(), line[10:35].strip().upper(), county,
+            _date8(line[_BEGIN]), _v99999(line[_GM_LOW]), _v99999(line[_DM_LOW]),
+            _date8(line[_PRIOR_BEGIN]), _date8(line[_PRIOR_END]),
+            _v99999(line[_PRIOR_GM_LOW]), _v99999(line[_PRIOR_DM_LOW]),
+        ))
     if len(out) < MIN_DATA_ROWS:
         raise ValueError(
             f"Illinois rate file: only {len(out)} data rows parsed, expected at least "
@@ -93,15 +142,15 @@ def parse(text: str) -> list[IlRow]:
     return out
 
 
-def _local(row: IlRow) -> Decimal:
+def _local(row: IlRow, gm: Decimal) -> Decimal:
     """Every Illinois rate quoted in the file includes the 6.25% state share, so the
     jurisdiction's own local rate is what is left over. A negative remainder means the
     columns moved and the build must fail naming the row, not publish a negative rate."""
-    local = row.gm_low - STATE_RATE
+    local = gm - STATE_RATE
     if local < 0:
         raise ValueError(
             f"Illinois rate file: {row.name} ({row.county}, {row.location_id}) has a low "
-            f"general-merchandise rate of {row.gm_low} below the {STATE_RATE} state rate"
+            f"general-merchandise rate of {gm} below the {STATE_RATE} state rate"
         )
     return local
 
@@ -118,7 +167,7 @@ class IlAdapter:
         # last. `join_key` folds the spellings the two sources disagree on (Census
         # `ST. CLAIR` vs the file's `SAINT CLAIR COUNTY`, `LA SALLE` vs `LASALLE`).
         by_name_county = {(join_key(r.name), join_key(r.county)): r for r in parse(_fetch_text())}
-        matched = fell_back = no_row = 0
+        matched = fell_back = no_row = uncovered = 0
         for zip5 in census.zips_in_state("17"):
             if zip5 not in census.centroids:
                 continue
@@ -128,7 +177,8 @@ class IlAdapter:
             row = by_name_county.get((join_key(place), county_key)) if place else None
             if row is not None:
                 matched += 1
-                label = f"{display_name(place)}, IL"
+                # The Census's own casing is the label (C1): `DeKalb`, `O'Fallon`.
+                label = f"{census.place_display(zip5) or display_name(place)}, IL"
             else:
                 # Unincorporated territory, a municipality IDOR taxes by address, or a
                 # Census place under a name IDOR does not file: the ZIP pays its county's
@@ -138,14 +188,22 @@ class IlAdapter:
                     no_row += 1
                     continue
                 fell_back += 1
-                label = f"{display_name(county)} County, IL"
+                label = f"{census.county_display(zip5) or display_name(county)} County, IL"
+            # A record carries the current period and the one before it; `on` decides
+            # which applies, so a build dated back before a rate change publishes the
+            # rate that was actually in force then.
+            gm, dm, covered = row.rates(on)
+            if not covered:
+                uncovered += 1
             # Illinois taxes qualifying food, drugs and medical appliances at a separate
             # reduced rate, so `food_drug_rate` is always published, never collapsed to
             # None the way an SST state's equal-to-general rate is.
-            yield ZipRate(zip5, "IL", STATE_RATE, _local(row), row.dm_low, label)
+            yield ZipRate(zip5, "IL", STATE_RATE, _local(row, gm), dm, label)
         print(
             f"[il] {matched} ZIPs matched a municipality, {fell_back} fell back to their "
-            f"county's rate, {no_row} dropped with no municipality or county row"
+            f"county's rate, {no_row} dropped with no municipality or county row "
+            f"({uncovered} took the current period's rate because neither period the "
+            f"record carries covers {on})"
         )
 
 

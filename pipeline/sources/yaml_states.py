@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from pipeline.census import Census
+from pipeline.census import Census, display_name
 from pipeline.model import ZipRate
 from pipeline.sources import REGISTRY
 
@@ -56,7 +56,13 @@ def rows_for(table: StateTable, census: Census) -> Iterable[ZipRate]:
             local = table.county_rates[county_geoid]
         elif census.county_name(zip5) in table.county_rates:
             local = table.county_rates[census.county_name(zip5)]
-        label = f"{(place or census.county_name(zip5) or table.state).title()}, {table.state}"
+        # The Census's own casing is the label (C1) -- `O'Fallon`, `McKeesport`, not what
+        # `.title()` makes of an uppercased name. `display_name` re-cases only the
+        # fallback, for a ZIP the relationship files name no place or county for.
+        name = census.place_display(zip5) or census.county_display(zip5)
+        if name is None:
+            name = display_name(place or census.county_name(zip5) or table.state)
+        label = f"{name}, {table.state}"
         yield ZipRate(zip5, table.state, table.state_rate, local, table.food_drug_rate, label)
 
 

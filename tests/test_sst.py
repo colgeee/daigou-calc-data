@@ -76,6 +76,22 @@ def test_compose_sums_state_county_place_districts_and_keeps_highest_current_row
     assert out["98002"].local_rate == D("0.056")
 
 
+def test_labels_keep_the_census_casing():
+    """C1: the label is the Census place, or failing that its county, with the casing the
+    Census publishes -- `O'Fallon`, `DeKalb` -- not what re-casing an uppercased join
+    name makes of them (`Dekalb`). Georgia and Tennessee are SST states and both file a
+    DeKalb County; O'Fallon stands in for the apostrophe names."""
+    rates = sst.parse_rate_file("53,45,53,0.065,0.065,0.065,0.065,19830301,99991231\n")
+    zs = [sst.ZipRow("98001", "98002", "", "", (), date(2024, 4, 1), sst.OPEN_END)]
+    c = census()
+    c.place["98001"] = ("5303180", "O'Fallon city")
+    c.county["98002"] = ("53037", "DeKalb County")  # the casing is the point, not the map
+    c.place.pop("98002")
+    out = {r.zip: r for r in sst.compose("WA", rates, zs, c, ON)}
+    assert out["98001"].label == "O'Fallon, WA"     # the place wins where there is one
+    assert out["98002"].label == "DeKalb, WA"       # otherwise the county, short form
+
+
 def ri_census():
     """RI-shaped census: one out-of-state ZIP, one in-state ZIP with no centroid."""
     counties = {

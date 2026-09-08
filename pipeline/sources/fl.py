@@ -37,6 +37,14 @@ _ROW = re.compile(r"^(?P<county>[A-Z][A-Za-z.'\- ]+?)\s+(?P<rate>None|\.?\d+(?:\
 # inflate the row count the sanity gate reads and file a second, differently-spelled key
 # for a county already present.
 _NARRATIVE = "Total Surtax Rate"
+# The form titles itself `Discretionary Sales Surtax Information for Calendar Year 2025
+# DR-15DSS`, and that year is the only thing in it that dates the rates. The URL is the
+# `/current/` one, so a stale form is served as if it were current -- Florida was still
+# serving the CY2025 form there on 2026-09-08, and the surtaxes it lists were still the
+# ones in force -- but a form more than one year behind the build date means Florida has
+# stopped updating it (or the fetch found some other document), and the build must fail
+# rather than publish rates nobody is charging any more.
+_CALENDAR_YEAR = re.compile(r"Calendar\s+Year\s+(\d{4})")
 
 
 def _fetch_lines() -> list[str]:
@@ -71,12 +79,38 @@ def parse_lines(lines: Iterable[str]) -> dict[str, Decimal]:
     return out
 
 
+def check_calendar_year(lines: Iterable[str], on: date) -> int:
+    """Return the calendar year the form is published for, having checked it is not stale.
+
+    Raises ``ValueError`` if the year is more than one behind `on`'s, or if the title
+    line carries no year at all. One year of slack is deliberate: `/current/` served the
+    CY2025 form throughout 2026 while its surtaxes were still the ones in force, so a
+    build on 2026-09-08 must accept CY2025 and reject CY2024."""
+    for line in lines:
+        m = _CALENDAR_YEAR.search(line)
+        if m:
+            year = int(m.group(1))
+            if year < on.year - 1:
+                raise ValueError(
+                    f"DR-15DSS: the form at {URL} is for calendar year {year}, more than "
+                    f"a year behind the {on} build -- Florida has stopped updating it "
+                    f"and its surtax rates can no longer be trusted"
+                )
+            return year
+    raise ValueError(
+        "DR-15DSS: no `Calendar Year <year>` line found -- the fetch returned something "
+        "other than the form, or its title changed and the staleness check has gone blind"
+    )
+
+
 class FlAdapter:
     name = "fl"
     states = ("FL",)
 
     def rows(self, census: Census, on: date) -> Iterable[ZipRate]:
-        table = parse_lines(_fetch_lines())
+        lines = _fetch_lines()
+        check_calendar_year(lines, on)
+        table = parse_lines(lines)
         # `join_key` on both sides of the name join, as Texas and Illinois do, so a
         # spelling the two sources disagree on (`St. Johns` vs `Saint Johns`) never
         # silently drops a county's worth of ZIPs.
@@ -99,8 +133,11 @@ class FlAdapter:
             # `food_drug_rate` is None: grocery food and prescription drugs are exempt
             # outright in Florida, not reduced-rated, so there is no second rate to
             # publish.
-            yield ZipRate(zip5, "FL", STATE_RATE, surtax, None,
-                          f"{display_name(county)} County, FL")
+            #
+            # The Census's own casing is the label (C1): `DeSoto County, FL`, not the
+            # `Desoto` a re-cased uppercase name gives. `display_name` is the fallback.
+            name = census.county_display(zip5) or display_name(county)
+            yield ZipRate(zip5, "FL", STATE_RATE, surtax, None, f"{name} County, FL")
         missing = f": {', '.join(sorted(dropped))}" if dropped else ""
         print(
             f"[fl] {kept} ZIPs priced at their county's surtax, {sum(dropped.values())} "

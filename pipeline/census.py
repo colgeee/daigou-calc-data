@@ -42,15 +42,31 @@ def parse_relationship(text: str, geoid_col: str, name_col: str) -> dict[str, tu
     return {z: (g, n) for z, (_, g, n) in best.items()}
 
 
+def _place_short(name: str) -> str:
+    """Strip the place-type suffix, keeping the relationship file's own casing:
+    ``McKinney city`` -> ``McKinney``, ``Cañon City city`` -> ``Cañon City``."""
+    return re.sub(r"\s+", " ", _PLACE_SUFFIX.sub("", name.strip()))
+
+
+def _county_short(name: str) -> str:
+    """Strip the county-type suffix, keeping the relationship file's own casing:
+    ``DuPage County`` -> ``DuPage``, ``Fairfax city`` -> ``Fairfax city``."""
+    n = name.strip()
+    if re.search(r"\scity$", n, re.I):
+        return re.sub(r"\s+", " ", n)  # independent city (VA, MD, MO, NV)
+    return re.sub(r"\s+", " ", _COUNTY_SUFFIX.sub("", n))
+
+
 def normalize_place(name: str) -> str:
-    return re.sub(r"\s+", " ", _PLACE_SUFFIX.sub("", name.strip())).upper()
+    """The uppercase join name of a place. `Census.place_display` returns the same name
+    with the Census file's own casing kept, which is what a label wants."""
+    return _place_short(name).upper()
 
 
 def county_short(name: str) -> str:
-    n = name.strip()
-    if re.search(r"\scity$", n, re.I):
-        return re.sub(r"\s+", " ", n).upper()  # independent city (VA, MD, MO, NV)
-    return re.sub(r"\s+", " ", _COUNTY_SUFFIX.sub("", n)).upper()
+    """The uppercase join name of a county. `Census.county_display` returns the same name
+    with the Census file's own casing kept, which is what a label wants."""
+    return _county_short(name).upper()
 
 
 def join_key(name: str) -> str:
@@ -66,7 +82,12 @@ def join_key(name: str) -> str:
 
 
 def display_name(name: str) -> str:
-    """Title-case a place/county label for display, then fix what `.title()` mangles:
+    """Re-case a label that reaches an adapter already uppercased -- a rate file's own
+    jurisdiction name, or the fallback for a ZIP the Census relationship files do not
+    name. Where the Census does name it, `Census.county_display`/`place_display` carry
+    the real casing and are used instead (C1).
+
+    Title-cases, then fixes what `.title()` mangles:
     a leading ``Mc`` wants its next letter capitalised (``Mcintosh`` -> ``McIntosh``,
     ``Mckinney`` -> ``McKinney``, and after a hyphen too: ``Candler-Mcafee`` ->
     ``Candler-McAfee``), and the ``Afb`` token is an acronym (``Mcconnell Afb`` ->
@@ -88,6 +109,13 @@ def display_name(name: str) -> str:
 
 @dataclass
 class Census:
+    """`county` and `place` map a ZCTA to ``(GEOID, NAMELSAD)``, the relationship file's
+    name kept exactly as it is published -- ``DuPage County``, ``O'Fallon city``,
+    ``McKinney city``, ``Cañon City city``. `county_name`/`place_name` fold that to the
+    uppercase name the rate-file joins key on; `county_display`/`place_display` keep the
+    casing, which is what every adapter's label uses (C1). Re-casing an uppercased name
+    with `display_name` is the fallback for a ZIP the relationship files do not name."""
+
     centroids: dict[str, tuple[float, float]]
     county: dict[str, tuple[str, str]]
     place: dict[str, tuple[str, str]] = field(default_factory=dict)
@@ -115,6 +143,13 @@ class Census:
         c = self.county.get(zcta)
         return None if c is None else county_short(c[1])
 
+    def county_display(self, zcta: str) -> str | None:
+        """`county_name`'s short form with the Census file's casing kept: ``DuPage``,
+        ``DeSoto``, ``LaSalle``, ``St. Clair``, and ``Fairfax city`` for an independent
+        city, which is a county in its own right."""
+        c = self.county.get(zcta)
+        return None if c is None else _county_short(c[1])
+
     def county_fips3(self, zcta: str) -> str | None:
         c = self.county.get(zcta)
         return None if c is None else c[0][2:]
@@ -122,6 +157,12 @@ class Census:
     def place_name(self, zcta: str) -> str | None:
         p = self.place.get(zcta)
         return None if p is None else normalize_place(p[1])
+
+    def place_display(self, zcta: str) -> str | None:
+        """`place_name` with the Census file's casing kept: ``McKinney``, ``O'Fallon``,
+        ``DeKalb``, ``Cañon City``."""
+        p = self.place.get(zcta)
+        return None if p is None else _place_short(p[1])
 
     def place_fips5(self, zcta: str) -> str | None:
         p = self.place.get(zcta)

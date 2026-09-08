@@ -16,6 +16,10 @@ LINES = [
     "Miami-Dade 1% (.5%) Jan 1, 1992    None",
     "St. Johns .5% Jan 1, 2023    Dec 31, 2032",
     "Hamilton 2%             (1%) Jul 1, 1990    Dec 31, 2029",
+    # The form's own title line, which is what dates it (C4): every adapter test needs
+    # one to get past the staleness check. It is not shaped like a rate row, so it does
+    # not become a county.
+    "Discretionary Sales Surtax Information for Calendar Year 2025 DR-15DSS",
 ]
 
 # Verbatim lines from `pypdf`'s extraction of the live DR-15DSS (R. 11/24, "Discretionary
@@ -199,6 +203,52 @@ def test_rows_skip_zips_outside_florida_or_without_a_centroid(monkeypatch):
         place={},
     )
     assert [r.zip for r in fl.FlAdapter().rows(c, date(2026, 9, 8))] == ["32601"]
+
+
+def test_calendar_year_accepts_last_years_form_and_rejects_an_older_one():
+    """C4: the fetch URL is Florida's `/current/` one, so a stale form is served as if it
+    were current. On 2026-09-08 that URL still served the CY2025 form and its surtaxes
+    were still the ones in force, so one year of slack has to pass; a form two years
+    behind means Florida stopped updating it and the build must fail."""
+    on = date(2026, 9, 8)
+    assert fl.check_calendar_year(LIVE_LINES, on) == 2025          # the live 2026-09-08 form
+    stale = [ln.replace("Calendar Year 2025", "Calendar Year 2024") for ln in LIVE_LINES]
+    with pytest.raises(ValueError, match="calendar year 2024"):
+        fl.check_calendar_year(stale, on)
+    # A build a year later would no longer accept CY2025 either.
+    with pytest.raises(ValueError, match="calendar year 2025"):
+        fl.check_calendar_year(LIVE_LINES, date(2027, 1, 1))
+
+
+def test_calendar_year_raises_when_the_title_line_carries_no_year():
+    """A form whose title changed would leave the staleness check silently blind, which
+    is the failure it exists to prevent."""
+    with pytest.raises(ValueError, match="no `Calendar Year"):
+        fl.check_calendar_year(["Alachua 1.5%"], date(2026, 9, 8))
+
+
+def test_rows_refuse_a_stale_form(monkeypatch):
+    """The check runs from the adapter, before any ZIP is priced."""
+    monkeypatch.setattr(fl, "_fetch_lines", lambda: [
+        ln.replace("Calendar Year 2025", "Calendar Year 2019") for ln in LINES])
+    c = Census(centroids={"32601": (29.65, -82.32)},
+               county={"32601": ("12001", "Alachua County")}, place={})
+    with pytest.raises(ValueError, match="calendar year 2019"):
+        list(fl.FlAdapter().rows(c, date(2026, 9, 8)))
+
+
+def test_the_county_label_keeps_the_census_casing(monkeypatch):
+    """C1: `DeSoto County, FL`, not the `Desoto` that re-casing an uppercased name gives.
+    Miami-Dade also has to survive the hyphen, which `.title()` alone would keep."""
+    monkeypatch.setattr(fl, "_fetch_lines", lambda: LINES)
+    c = Census(
+        centroids={"34266": (27.2, -81.8), "33131": (25.77, -80.19)},
+        county={"34266": ("12027", "DeSoto County"), "33131": ("12086", "Miami-Dade County")},
+        place={},
+    )
+    rows = {r.zip: r for r in fl.FlAdapter().rows(c, date(2026, 9, 8))}
+    assert rows["34266"].label == "DeSoto County, FL"
+    assert rows["33131"].label == "Miami-Dade County, FL"
 
 
 def test_parse_raises_when_too_few_county_rows(monkeypatch):

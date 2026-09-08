@@ -23,11 +23,14 @@ FIXTURE = "\n".join([
 
 # Verbatim records from the live IDOR file (2026-09-08 fetch), kept whole so a shift in
 # the fixed-width columns fails here rather than silently repricing Illinois. The file is
-# 211 characters wide: the header fields the brief documents, then THREE 21-character rate
-# groups (high GM, high food/drug, low GM, low food/drug, "rate varies" flag) for the
-# current period, then a prior period's date range and its own three groups. Only the
-# first group of the current period is a jurisdiction's own general-merchandise and
-# food/drug rate; the adapter reads its low pair, at [79:84] and [84:89].
+# 211 characters wide: the header fields the brief documents, ending in the current
+# period's start date at [61:69], then THREE 21-character rate groups (high GM, high
+# food/drug, low GM, low food/drug, "rate varies" flag) for that period, then the prior
+# period's start and end dates at [132:140] and [140:148] and its own three groups. Only
+# the first group of a period is a jurisdiction's own general-merchandise and food/drug
+# rate; the adapter reads that group's low pair -- [79:84] and [84:89] for the current
+# period, [158:163] and [163:168] for the prior one -- from whichever period covers the
+# build date (C2).
 LIVE_CHICAGO_COOK = (
     '016-0001-1CHICAGO                  COOK                     N202608011050002500105000250'
     '0N06250010000625001000N08750075000000000000Y201601012026073110250022501025002250N0625001'
@@ -97,6 +100,12 @@ def test_parse_reads_the_live_columns():
         ("016-5000-1", "COOK COUNTY", "COOK", D("0.0925"), D("0.025")),
         ("084-5000-8", "SANGAMON COUNTY", "SANGAMON", D("0.0775"), D("0.01")),
     ]
+    # And on the prior period's date range and its own first rate group (C2): Chicago's
+    # Cook rate rose to 10.5% on 2026-08-01, from the 10.25% that ran from 2016-01-01.
+    chi = rows[0]
+    assert chi.begin == date(2026, 8, 1)
+    assert (chi.prior_begin, chi.prior_end) == (date(2016, 1, 1), date(2026, 7, 31))
+    assert (chi.prior_gm_low, chi.prior_dm_low) == (D("0.1025"), D("0.0225"))
 
 
 def test_parse_skips_live_address_override_rows():
@@ -168,6 +177,44 @@ def test_place_join_disambiguates_by_the_zips_own_county(monkeypatch):
     assert rows["60666"].general_rate == D("0.085") and rows["60666"].food_drug_rate == D("0.02")
 
 
+def _chicago_census():
+    return Census(
+        centroids={"60601": (41.88, -87.62)},
+        county={"60601": ("17031", "Cook County")},
+        place={"60601": ("1714000", "Chicago city")},
+    )
+
+
+def test_rows_price_from_the_period_that_covers_on(monkeypatch):
+    """C2: the record carries both period ranges, and `on` picks between them. Chicago's
+    Cook rate is 10.5% from 2026-08-01; the 10.25% before it ran from 2016-01-01, so a
+    build dated inside that range must publish 10.25% and its 2.25% food/drug rate, not
+    today's pair."""
+    monkeypatch.setattr(il, "_fetch_text", lambda: LIVE_CHICAGO_COOK)
+    now = list(il.IlAdapter().rows(_chicago_census(), date(2026, 9, 8)))
+    assert [(r.local_rate, r.food_drug_rate) for r in now] == [(D("0.0425"), D("0.025"))]
+    # The day the current period opens, and the day before it.
+    opens = list(il.IlAdapter().rows(_chicago_census(), date(2026, 8, 1)))
+    assert [(r.local_rate, r.food_drug_rate) for r in opens] == [(D("0.0425"), D("0.025"))]
+    before = list(il.IlAdapter().rows(_chicago_census(), date(2026, 7, 31)))
+    assert [(r.local_rate, r.food_drug_rate) for r in before] == [(D("0.04"), D("0.0225"))]
+    # And well inside the prior period, and on the day it opens.
+    for on in (date(2026, 1, 1), date(2016, 1, 1)):
+        rows = list(il.IlAdapter().rows(_chicago_census(), on))
+        assert [(r.local_rate, r.food_drug_rate) for r in rows] == [(D("0.04"), D("0.0225"))]
+
+
+def test_rows_fall_back_to_the_current_period_and_count_a_date_neither_covers(
+        monkeypatch, capsys):
+    """C2: a build dated before both ranges -- 2015, when Chicago's record starts in 2016
+    -- has no published rate to read. The current period stands in, and the counter says
+    so rather than letting a silently anachronistic rate through."""
+    monkeypatch.setattr(il, "_fetch_text", lambda: LIVE_CHICAGO_COOK)
+    rows = list(il.IlAdapter().rows(_chicago_census(), date(2015, 1, 1)))
+    assert [(r.local_rate, r.food_drug_rate) for r in rows] == [(D("0.0425"), D("0.025"))]
+    assert "1 took the current period's rate" in capsys.readouterr().out
+
+
 def test_county_fallback_joins_saint_clair_through_the_shared_join_key(monkeypatch):
     """The Census county name normalizes to `ST. CLAIR`, but IDOR files the county row as
     `SAINT CLAIR COUNTY`. `census.join_key` folds both to the same key; without it, every
@@ -232,6 +279,30 @@ def test_food_drug_rate_is_always_published(monkeypatch):
     rows = list(il.IlAdapter().rows(c, date(2026, 9, 8)))
     assert [(r.local_rate, r.food_drug_rate, r.label) for r in rows] == [
         (D("0.0275"), D("0.01"), "Washington, IL")]
+
+
+def test_labels_keep_the_census_casing(monkeypatch):
+    """C1: `DuPage County, IL` and `O'Fallon, IL`, both straight from the Census
+    relationship files. Re-casing the uppercased join name would give `Dupage County` and
+    -- for the many Illinois names like `DeKalb` and `LaSalle` -- `Dekalb`, `Lasalle`."""
+    monkeypatch.setattr(il, "_fetch_text", lambda: "\n".join([
+        rec("022-0000-0", "DUPAGE COUNTY", "DUPAGE", "N", "20260801", "08000", "01750",
+            "07000", "01750"),
+        rec("082-0033-1", "O'FALLON", "ST. CLAIR", "N", "20260801", "08350", "01750",
+            "08350", "01750"),
+        rec("019-0000-0", "DEKALB COUNTY", "DEKALB", "N", "20260801", "08000", "01750",
+            "07000", "01750"),
+    ]))
+    c = Census(
+        centroids={"60148": (41.87, -88.01), "62269": (38.59, -89.91), "60115": (41.93, -88.75)},
+        county={"60148": ("17043", "DuPage County"), "62269": ("17163", "St. Clair County"),
+                "60115": ("17037", "DeKalb County")},
+        place={"62269": ("1755133", "O'Fallon city")},
+    )
+    rows = {r.zip: r for r in il.IlAdapter().rows(c, date(2026, 9, 8))}
+    assert rows["60148"].label == "DuPage County, IL"
+    assert rows["62269"].label == "O'Fallon, IL"
+    assert rows["60115"].label == "DeKalb County, IL"
 
 
 def test_adapter_is_registered():

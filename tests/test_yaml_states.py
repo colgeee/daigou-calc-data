@@ -51,6 +51,24 @@ def test_ms_place_rate_and_va_regions():
     assert rows["23185"].local_rate == D("0.017")           # Williamsburg VA (independent city)
 
 
+def test_labels_keep_the_census_casing():
+    """C1: `McKeesport`, `DuBois` and the independent city `Williamsburg city` all come
+    out of the Census with their own casing; `.title()` on the uppercased join name gave
+    `Mckeesport` and `Dubois`. A ZIP the place file does not name reads as its county."""
+    c = Census(
+        centroids={"15132": (40.34, -79.86), "15801": (41.12, -78.76), "23185": (37.27, -76.7),
+                   "17545": (40.17, -76.42)},
+        county={"15132": ("42003", "Allegheny County"), "15801": ("42033", "Clearfield County"),
+                "23185": ("51830", "Williamsburg city"), "17545": ("42071", "Lancaster County")},
+        place={"15132": ("4245728", "McKeesport city"), "15801": ("4219432", "DuBois city")},
+    )
+    rows = {r.zip: r for r in yaml_states.YamlStatesAdapter().rows(c, date(2026, 9, 8))}
+    assert rows["15132"].label == "McKeesport, PA"
+    assert rows["15801"].label == "DuBois, PA"
+    assert rows["23185"].label == "Williamsburg city, VA"  # an independent city is a county
+    assert rows["17545"].label == "Lancaster, PA"          # no place: the county
+
+
 def test_state_fips_map_covers_all_yaml_states():
     for f in RULES.glob("*.yaml"):
         assert f.stem.upper() in yaml_states.FIPS

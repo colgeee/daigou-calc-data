@@ -73,7 +73,8 @@ def test_parse_lines_handles_fractions_except_and_cities():
     assert t.counties["CATTARAUGUS"] == D("0.08")
     assert t.counties["WESTCHESTER"] == D("0.08375")
     assert t.counties["NEW YORK CITY"] == D("0.08875")
-    assert t.cities["OLEAN"] == D("0.08") and t.cities["YONKERS"] == D("0.08875")
+    assert t.cities[("OLEAN", "CATTARAUGUS")] == D("0.08")
+    assert t.cities[("YONKERS", "WESTCHESTER")] == D("0.08875")
     assert "NEW YORK STATE ONLY" not in t.counties
 
 
@@ -107,22 +108,51 @@ def test_parse_reads_the_live_pdf_lines():
     assert t.counties["ONTARIO"] == D("0.075")
     assert t.counties["SUFFOLK"] == D("0.0875")  # the TAB-separated row
     assert t.counties["ST. LAWRENCE"] == D("0.08")
-    assert t.cities["ROME"] == D("0.0875") and t.cities["OGDENSBURG"] == D("0.08")
+    assert t.cities[("ROME", "ONEIDA")] == D("0.0875")
+    assert t.cities[("OGDENSBURG", "SAINTLAWRENCE")] == D("0.08")
     # The borough cross-reference rows carry no rate and must not become counties.
     assert not {"BRONX", "RICHMOND (STATEN ISLAND)", "NEW YORK (MANHATTAN)"} & set(t.counties)
     # Nor may the MCTD footnote, whose "3/8%" is not a rate row.
     assert not any("MCTD" in n or "RATES IN THESE" in n for n in t.counties)
 
 
-def test_parse_records_the_county_each_city_row_sits_in():
+def test_parse_keys_each_city_row_by_the_county_it_sits_under():
     """A `(city)` row is indented under its county's `– except` row and is taxed only
-    inside that county, so the parse has to remember which county it was reading."""
+    inside that county, so the parse has to remember which county it was reading and key
+    the row by both -- through `join_key`, as every other name join here does, which is
+    why St. Lawrence keys as `SAINTLAWRENCE` (C3)."""
     t = ny.parse_lines(LIVE_LINES)
-    assert t.city_county["OLEAN"] == "CATTARAUGUS"
-    assert t.city_county["ONEIDA"] == "MADISON"
-    assert t.city_county["ROME"] == "ONEIDA" and t.city_county["UTICA"] == "ONEIDA"
-    assert t.city_county["OGDENSBURG"] == "ST. LAWRENCE"
-    assert t.city_county["YONKERS"] == "WESTCHESTER"
+    assert t.cities[("OLEAN", "CATTARAUGUS")] == D("0.08")
+    assert t.cities[("ONEIDA", "MADISON")] == D("0.08")
+    assert t.cities[("ROME", "ONEIDA")] == D("0.0875")
+    assert t.cities[("UTICA", "ONEIDA")] == D("0.0875")
+    assert t.cities[("OGDENSBURG", "SAINTLAWRENCE")] == D("0.08")
+    assert t.cities[("YONKERS", "WESTCHESTER")] == D("0.08875")
+
+
+def test_two_same_named_cities_in_different_counties_do_not_collide():
+    """C3: keying the city rows by name alone would let the second of two same-named
+    cities silently overwrite the first, handing every ZIP in both counties one rate.
+    New York files no such pair today; the key must not be what stands between the
+    publication and a mispriced county if it ever does."""
+    t = ny.parse_lines([
+        " Alpha - except 8 0001",
+        "  Springfield (city) 7 0002",
+        " Beta - except 9 0003",
+        "  Springfield (city) 6 0004",
+    ])
+    assert t.cities[("SPRINGFIELD", "ALPHA")] == D("0.07")
+    assert t.cities[("SPRINGFIELD", "BETA")] == D("0.06")
+
+
+def test_the_except_suffix_is_stripped_whatever_dash_the_publication_sets():
+    """C3: Pub 718 sets an en dash today. Any of Unicode's other dashes would leave the
+    county filed as `CATTARAUGUS - EXCEPT`, a name no ZIP joins to, quietly dropping
+    every unincorporated ZIP in the county."""
+    for dash in ("-", "‐", "‑", "‒", "–", "—", "―", "−"):
+        t = ny.parse_lines([f" Cattaraugus {dash} except 8 0481", "  Olean (city) 8 0441"])
+        assert t.counties == {"CATTARAUGUS": D("0.08")}, dash
+        assert t.cities == {("OLEAN", "CATTARAUGUS"): D("0.08")}, dash
 
 
 def test_a_city_row_applies_only_inside_its_own_county(monkeypatch):

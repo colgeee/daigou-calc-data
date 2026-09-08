@@ -41,17 +41,27 @@ _FRAC = {"½": "0.5", "¼": "0.25", "¾": "0.75", "⅛": "0.125", "⅜": "0.375"
 _ROW = re.compile(
     r"^\s*\*?\s*(?P<name>.+?)\s+(?P<whole>\d+)(?P<frac>[½¼¾⅛⅜⅝⅞])?\s+(?P<code>\d{4})\s*$"
 )
+# Every dash Unicode offers where a hyphen is meant, folded to one before the `– except`
+# suffix is stripped. The publication sets an en dash today, but a typesetting change to
+# a hyphen, a non-breaking hyphen, a figure dash, an em dash, a horizontal bar or a minus
+# sign must not leave a county filed as `ONEIDA – EXCEPT`, a name no ZIP can ever join to
+# and one that would silently take every unincorporated ZIP in the county to the dropped
+# counter.
+_DASH = re.compile(r"[‐-―−-]")  # U+2010..U+2015, U+2212 and the ASCII hyphen
+_EXCEPT = re.compile(r"\s*-\s*except$", re.I)
 
 
 @dataclass
 class NyTable:
-    """Uppercase jurisdiction name -> the **combined** state-plus-local rate published
-    for it. `city_county` records which county each `(city)` row was indented under; a
-    city is taxed at its own rate only inside that county (see `NyAdapter.rows`)."""
+    """The **combined** state-plus-local rate published for each jurisdiction. `counties`
+    is keyed by uppercase county name. `cities` is keyed by `(join_key(city),
+    join_key(county))` -- the county being the one the `(city)` row was indented under,
+    both because a city is taxed at its own rate only inside that county (see
+    `NyAdapter.rows`) and because two same-named cities in different counties would
+    otherwise collide on the way in, the second row silently overwriting the first."""
 
     counties: dict[str, Decimal] = field(default_factory=dict)
-    cities: dict[str, Decimal] = field(default_factory=dict)
-    city_county: dict[str, str] = field(default_factory=dict)
+    cities: dict[tuple[str, str], Decimal] = field(default_factory=dict)
 
 
 def _fetch_lines() -> list[str]:
@@ -75,17 +85,16 @@ def parse_lines(lines: Iterable[str]) -> NyTable:
         m = _ROW.match(line)
         if not m:
             continue
-        name = re.sub(r"\s+", " ", m.group("name")).replace("–", "-").strip()
+        name = _DASH.sub("-", re.sub(r"\s+", " ", m.group("name"))).strip()
         if name.upper().startswith("NEW YORK STATE"):
             continue
         pct = Decimal(m.group("whole")) + Decimal(_FRAC.get(m.group("frac") or "", "0"))
         rate = pct / Decimal(100)
         if name.lower().endswith("(city)"):
             city = name[: -len("(city)")].strip().upper()
-            t.cities[city] = rate
-            t.city_county[city] = county
+            t.cities[(join_key(city), join_key(county))] = rate
         else:
-            county = re.sub(r"\s*-\s*except$", "", name, flags=re.I).strip().upper()
+            county = _EXCEPT.sub("", name).strip().upper()
             t.counties[county] = rate
     if len(t.counties) < MIN_COUNTY_ROWS:
         raise ValueError(
@@ -111,30 +120,32 @@ class NyAdapter:
         # spelling the two sources disagree on (`ST. LAWRENCE` vs `SAINT LAWRENCE`)
         # never silently drops a county's worth of ZIPs.
         counties = {join_key(n): r for n, r in t.counties.items()}
-        cities = {join_key(n): (r, join_key(t.city_county.get(n, "")))
-                  for n, r in t.cities.items()}
+        nyc_counties = {join_key(n) for n in NYC_COUNTIES}
         counts = {"nyc": 0, "city": 0, "county": 0}
         dropped: dict[str, int] = {}
         for zip5 in census.zips_in_state("36"):
             if zip5 not in census.centroids:
                 continue
             county = census.county_name(zip5) or ""
+            county_key = join_key(county)
             place = census.place_name(zip5)
-            city = cities.get(join_key(place)) if place else None
-            if county in NYC_COUNTIES:
-                kind, total, label = "nyc", t.counties.get(NYC_ROW), NYC_LABEL
-            elif city is not None and city[1] == join_key(county):
-                # A `(city)` row is taxed only inside the county it is filed under, so
-                # the ZIP's own county has to agree. `Oneida` is both a city taxed at 8%
-                # (in Madison County) and a county taxed at 8.75%; a name-only match
-                # would misprice one of them.
-                kind, total, label = "city", city[0], f"{display_name(place)}, NY"
+            # A `(city)` row is taxed only inside the county it is filed under, so the
+            # county is part of the key on both sides. `Oneida` is both a city taxed at
+            # 8% (in Madison County) and a county taxed at 8.75%; a name-only match would
+            # misprice one of them.
+            city = t.cities.get((join_key(place), county_key)) if place else None
+            if county_key in nyc_counties:
+                kind, total, label = "nyc", counties.get(join_key(NYC_ROW)), NYC_LABEL
+            elif city is not None:
+                # The Census's own casing is the label (C1).
+                kind, total = "city", city
+                label = f"{census.place_display(zip5) or display_name(place)}, NY"
             else:
                 # Unincorporated territory, a town or village Pub 718 does not tax
                 # separately, or a city row whose county did not match: the ZIP pays its
                 # county's combined rate.
-                kind, total = "county", counties.get(join_key(county))
-                label = f"{display_name(county)} County, NY"
+                kind, total = "county", counties.get(county_key)
+                label = f"{census.county_display(zip5) or display_name(county)} County, NY"
             if total is None:
                 dropped[county] = dropped.get(county, 0) + 1
                 continue

@@ -127,7 +127,9 @@ class TxAdapter:
             if row is not None:
                 matched += 1
                 raw = row.city_rate + row.county_rate + row.spd_rate
-                label = f"{display_name(place)}, TX"
+                # The Census's own casing is the label (C1): `DeSoto`, `McKinney`. The
+                # `display_name` re-casing is only the fallback.
+                label = f"{census.place_display(zip5) or display_name(place)}, TX"
             else:
                 # Unincorporated territory, or a Census place the Comptroller does not tax
                 # under that name: the ZIP pays its county's highest filed local rate.
@@ -138,7 +140,7 @@ class TxAdapter:
                 else:
                     no_county_row += 1
                 raw = county_local.get(county, Decimal("0"))
-                label = f"{display_name(county)} County, TX"
+                label = f"{census.county_display(zip5) or display_name(county)} County, TX"
             local = _capped(raw)
             if local != raw:
                 capped += 1

@@ -172,8 +172,13 @@ def compose(
         for zip5 in candidates:
             if zip5 not in in_state or zip5 not in census.centroids:
                 continue
-            name = census.place_name(zip5) or census.county_name(zip5) or state
-            label = f"{display_name(name)}, {state}"
+            # The Census's own casing is the label (C1); `display_name` re-cases only the
+            # fallback, for a ZIP the relationship files name neither a place nor a
+            # county for -- which leaves the state code itself as the only label.
+            name = census.place_display(zip5) or census.county_display(zip5)
+            if name is None:
+                name = display_name(census.place_name(zip5) or census.county_name(zip5) or state)
+            label = f"{name}, {state}"
             # The food/drug columns repeat the general rate where a state has no reduced
             # grocery rate; that is not a food rate, so only a genuinely lower one is kept.
             cand = ZipRate(

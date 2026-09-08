@@ -57,8 +57,9 @@ def test_parse_reads_blank_and_na_cells_as_zero():
 
 def test_parse_collapses_internal_whitespace():
     """M4: `parse` collapses runs of internal whitespace the way `census.normalize_place`
-    does. `_key` (F1) removes whitespace entirely for join purposes and so subsumes this
-    for matching, but `parse`'s own output should still read cleanly on its own."""
+    does. `census.join_key` (F1) removes whitespace entirely for join purposes and so
+    subsumes this for matching, but `parse`'s own output should still read cleanly on its
+    own."""
     rows = tx.parse(tsv(row("Fort  Worth", "0.01", "Parker", "0.005")))
     assert rows[0].city == "FORT WORTH"
 
@@ -200,19 +201,30 @@ def test_rows_skip_zips_outside_texas_or_without_a_centroid(monkeypatch):
     assert [r.zip for r in tx.TxAdapter().rows(c, date(2026, 9, 8))] == ["75201"]
 
 
-def test_labels_use_the_shared_display_name_fixups(monkeypatch):
+def test_labels_keep_the_census_casing(monkeypatch):
+    """C1: the label is the Census name with its own casing, suffix stripped -- `DeSoto`,
+    not the `Desoto` that re-casing the uppercased join name gives, and `McKinney` and
+    `Dyess AFB` without needing `display_name`'s fixups at all. The county fallback reads
+    the same way."""
     monkeypatch.setattr(tx, "_fetch_text", lambda: tsv(
         row("McKinney", "0.02", "Collin", "0"),
         row("Dyess AFB", "0.02", "Taylor", "0"),
+        row("De Soto", "0.02", "Dallas", "0"),
+        row("Anywhere", "0.01", "DeWitt", "0.005"),
     ))
     c = Census(
-        centroids={"75070": (33.2, -96.7), "79607": (32.4, -99.8)},
-        county={"75070": ("48085", "Collin County"), "79607": ("48441", "Taylor County")},
-        place={"75070": ("4845744", "McKinney city"), "79607": ("4821916", "Dyess AFB CDP")},
+        centroids={"75070": (33.2, -96.7), "79607": (32.4, -99.8), "75115": (32.6, -96.9),
+                   "77954": (29.1, -97.1)},
+        county={"75070": ("48085", "Collin County"), "79607": ("48441", "Taylor County"),
+                "75115": ("48113", "Dallas County"), "77954": ("48123", "DeWitt County")},
+        place={"75070": ("4845744", "McKinney city"), "79607": ("4821916", "Dyess AFB CDP"),
+               "75115": ("4819972", "DeSoto city")},
     )
     rows = {r.zip: r for r in tx.TxAdapter().rows(c, date(2026, 9, 8))}
     assert rows["75070"].label == "McKinney, TX"
     assert rows["79607"].label == "Dyess AFB, TX"
+    assert rows["75115"].label == "DeSoto, TX"
+    assert rows["77954"].label == "DeWitt County, TX"
 
 
 def test_place_join_tolerates_de_soto_spelling(monkeypatch):

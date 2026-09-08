@@ -164,5 +164,31 @@ def test_rows_drop_a_zip_whose_county_has_no_unincorporated_row(monkeypatch):
     assert list(ca.CaAdapter().rows(c, date(2026, 9, 8))) == []
 
 
+def test_the_unincorporated_label_keeps_the_census_casing_and_cities_keep_cdtfas(
+        monkeypatch):
+    """C1: the county fallback label is the Census county with its own casing --
+    `DeSoto`-style names would otherwise come back re-cased. A matched city keeps CDTFA's
+    own `City_Name_Proper`, which is already properly cased bar `Mcfarland`, the one name
+    in the live extract that still needs `display_name`'s Mc fixup."""
+    monkeypatch.setattr(
+        ca,
+        "_fetch_text",
+        lambda: csv_text(
+            f"1,MCFARLAND,KERN,MCFARLAND,Mcfarland,0.0825,4/1/2025 7:00:00 AM,{TAIL}",
+            f"2,KERN,KERN,UNINCORPORATED,Unincorporated,0.0725,4/1/2025 7:00:00 AM,{TAIL}",
+            f"3,DEL NORTE,DEL NORTE,UNINCORPORATED,Unincorporated,0.0725,"
+            f"4/1/2025 7:00:00 AM,{TAIL}",
+        ),
+    )
+    c = Census(
+        centroids={"93250": (35.68, -119.23), "95531": (41.76, -124.2)},
+        county={"93250": ("06029", "Kern County"), "95531": ("06015", "Del Norte County")},
+        place={"93250": ("0645470", "McFarland city")},
+    )
+    rows = {r.zip: r for r in ca.CaAdapter().rows(c, date(2026, 9, 8))}
+    assert rows["93250"].label == "McFarland, CA"
+    assert rows["95531"].label == "Del Norte County, CA"
+
+
 def test_adapter_is_registered():
     assert any(a.name == "ca" and a.states == ("CA",) for a in ca.REGISTRY)

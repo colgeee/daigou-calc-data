@@ -109,8 +109,11 @@ class CaAdapter:
             label = None
             if hit is None:
                 # A CDP or an unmatched name is unincorporated territory of its county.
+                # The county label keeps the Census's own casing (C1), with `display_name`
+                # as the fallback; a matched city keeps CDTFA's `City_Name_Proper`, which
+                # is already cased (bar `Mcfarland`, which `display_name` fixes).
                 hit = table.get((county, ""))
-                label = f"{display_name(county)} County, CA"
+                label = f"{census.county_display(zip5) or display_name(county)} County, CA"
             if hit is None:
                 # San Francisco is a consolidated city-county with no unincorporated row.
                 dropped += 1
