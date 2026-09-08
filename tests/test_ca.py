@@ -29,14 +29,22 @@ def test_parse_keys_cities_and_unincorporated():
 
 def test_parse_keys_the_live_unincorporated_shape():
     """CDTFA ships ``City_name`` as a bare ``UNINCORPORATED`` and carries the county only
-    in ``JURIS_NAME``; both that and the fixture's spelling key to ``(county, "")``."""
+    in ``JURIS_NAME``; both that and the fixture's spelling key to ``(county, "")``. Also
+    covers multi-word county names in ``JURIS_NAME``, which don't get split apart because
+    the county comes straight from ``County_name``, never parsed out of ``JURIS_NAME``."""
     t = ca.parse(
         csv_text(
             "1,UNINCORPORATED AREA-ALAMEDA,ALAMEDA,UNINCORPORATED,Unincorporated,0.1025,"
             f"4/1/2025 7:00:00 AM,{TAIL}",
+            "2,UNINCORPORATED AREA-SAN LUIS OBISPO,SAN LUIS OBISPO,UNINCORPORATED,"
+            f"Unincorporated,0.0725,4/1/2025 7:00:00 AM,{TAIL}",
+            "3,UNINCORPORATED AREA-EL DORADO,EL DORADO,UNINCORPORATED,Unincorporated,"
+            f"0.0725,4/1/2025 7:00:00 AM,{TAIL}",
         )
     )
     assert t[("ALAMEDA", "")] == (D("0.1025"), "Unincorporated")
+    assert t[("SAN LUIS OBISPO", "")] == (D("0.0725"), "Unincorporated")
+    assert t[("EL DORADO", "")] == (D("0.0725"), "Unincorporated")
 
 
 def test_parse_keeps_the_latest_start_date_when_a_jurisdiction_repeats():
@@ -47,6 +55,20 @@ def test_parse_keeps_the_latest_start_date_when_a_jurisdiction_repeats():
         )
     )
     assert t[("ALAMEDA", "DUBLIN")][0] == D("0.1025")
+
+
+def test_parse_ignores_a_future_dated_row_until_on_reaches_it():
+    """CDTFA pre-publishes next quarter's rate ahead of its effective date. `parse` must
+    not adopt a row whose `START_DATE` is still in the future relative to the build date,
+    even though it is the latest `START_DATE` in the file."""
+    text = csv_text(
+        f"1,DUBLIN,ALAMEDA,DUBLIN,Dublin,0.0975,1/1/2020 8:00:00 AM,{TAIL}",
+        f"2,DUBLIN,ALAMEDA,DUBLIN,Dublin,0.1025,1/1/2030 7:00:00 AM,{TAIL}",
+    )
+    before = ca.parse(text, date(2026, 9, 8))
+    assert before[("ALAMEDA", "DUBLIN")][0] == D("0.0975")
+    on_date = ca.parse(text, date(2030, 1, 1))
+    assert on_date[("ALAMEDA", "DUBLIN")][0] == D("0.1025")
 
 
 def test_parse_rejects_a_rate_below_the_state_rate():
@@ -79,6 +101,53 @@ def test_rows_match_place_then_unincorporated_then_drop(monkeypatch):
     assert rows["96120"].local_rate == D("0")
     assert rows["94103"].local_rate == D("0.01375")
     assert set(rows) == {"90012", "91001", "96120", "94103"}
+
+
+def test_rows_uses_the_alias_for_a_divergent_city_name(monkeypatch):
+    """Census normalises Angels Camp to the bare place name ``ANGELS``; CDTFA keys the
+    jurisdiction ``ANGELS CAMP``. Without the alias this ZIP would silently fall back to
+    the county's unincorporated rate instead of the city rate."""
+    monkeypatch.setattr(
+        ca,
+        "_fetch_text",
+        lambda: csv_text(
+            f"1,ANGELS CAMP,CALAVERAS,ANGELS CAMP,Angels Camp,0.0875,4/1/2025 7:00:00 AM,{TAIL}",
+            f"2,CALAVERAS,CALAVERAS,UNINCORPORATED,Unincorporated,0.0725,4/1/2025 7:00:00 AM,"
+            f"{TAIL}",
+        ),
+    )
+    c = Census(
+        centroids={"95221": (38.07, -120.54)},
+        county={"95221": ("06009", "Calaveras County")},
+        place={"95221": ("0602182", "Angels city")},
+    )
+    rows = {r.zip: r for r in ca.CaAdapter().rows(c, date(2026, 9, 8))}
+    assert rows["95221"].local_rate == D("0.0150")
+    assert rows["95221"].label == "Angels Camp, CA"
+
+
+def test_rows_falls_back_to_the_parenthetical_when_no_alias_covers_it(monkeypatch):
+    """A Census place name with a parenthetical that isn't in ALIASES still resolves: the
+    parenthetical alone is tried first, then the name with it stripped."""
+    monkeypatch.setattr(
+        ca,
+        "_fetch_text",
+        lambda: csv_text(
+            f"1,BAR,TESTCOUNTY,BAR,Bar,0.08,4/1/2025 7:00:00 AM,{TAIL}",
+            f"2,FOO,OTHERCOUNTY,FOO,Foo,0.085,4/1/2025 7:00:00 AM,{TAIL}",
+        ),
+    )
+    c = Census(
+        centroids={"00001": (0.0, 0.0), "00002": (0.0, 0.0)},
+        county={
+            "00001": ("06999", "Testcounty County"),
+            "00002": ("06998", "Othercounty County"),
+        },
+        place={"00001": ("0600001", "Foo (Bar) city"), "00002": ("0600002", "Foo (Baz) city")},
+    )
+    rows = {r.zip: r for r in ca.CaAdapter().rows(c, date(2026, 9, 8))}
+    assert rows["00001"].local_rate == D("0.0075")  # matched via the parenthetical alone
+    assert rows["00002"].local_rate == D("0.0125")  # matched via the name with it stripped
 
 
 def test_rows_drop_a_zip_whose_county_has_no_unincorporated_row(monkeypatch):
