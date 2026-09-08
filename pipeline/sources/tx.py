@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
-from pipeline.census import Census, display_name
+from pipeline.census import Census, display_name, join_key
 from pipeline.http import get_cached
 from pipeline.model import ZipRate
 from pipeline.sources import REGISTRY
@@ -48,21 +48,11 @@ def _dec(s: str) -> Decimal:
 
 def _clean(s: str) -> str:
     """Collapse internal whitespace and uppercase a jurisdiction name, matching
-    ``census.normalize_place``'s own whitespace rule (M4). ``_key`` below strips
+    ``census.normalize_place``'s own whitespace rule (M4). ``census.join_key`` strips
     whitespace entirely for join purposes and so subsumes this for matching, but
     ``parse`` still normalizes here to keep ``TxRow.city``/``.county`` readable on
     their own."""
     return re.sub(r"\s+", " ", s.strip()).upper()
-
-
-def _key(name: str) -> str:
-    """Join key tolerant of spelling variants between the Comptroller file and the
-    Census gazetteer for the same place (F1): Census ``DESOTO`` vs the file's
-    ``DE SOTO`` (75115), Census ``ST. HEDWIG`` vs the file's ``SAINT HEDWIG`` (78152).
-    Uppercases, expands a leading ``ST``/``ST.`` to ``SAINT``, drops periods, then
-    strips all remaining whitespace so word-spacing differences never matter."""
-    n = re.sub(r"^ST\.?\s+", "SAINT ", name.strip().upper())
-    return re.sub(r"\s+", "", n.replace(".", ""))
 
 
 def _capped(total: Decimal) -> Decimal:
@@ -125,7 +115,7 @@ class TxAdapter:
 
     def rows(self, census: Census, on: date) -> Iterable[ZipRate]:
         table = parse(_fetch_text())
-        by_city_county = {(_key(r.city), r.county): r for r in table}
+        by_city_county = {(join_key(r.city), r.county): r for r in table}
         county_local = _county_max_local(table)
         matched = fell_back = no_county_row = capped = 0
         for zip5 in census.zips_in_state("48"):
@@ -133,7 +123,7 @@ class TxAdapter:
                 continue
             county = census.county_name(zip5) or ""
             place = census.place_name(zip5)
-            row = by_city_county.get((_key(place), county)) if place else None
+            row = by_city_county.get((join_key(place), county)) if place else None
             if row is not None:
                 matched += 1
                 raw = row.city_rate + row.county_rate + row.spd_rate

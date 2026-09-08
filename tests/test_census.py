@@ -4,6 +4,7 @@ from pipeline.census import (
     Census,
     county_short,
     display_name,
+    join_key,
     normalize_place,
     parse_gazetteer,
     parse_relationship,
@@ -40,6 +41,23 @@ def test_normalizers():
     assert county_short("Orleans Parish") == "ORLEANS"
     assert county_short("Fairfax city") == "FAIRFAX CITY"
     assert county_short("Fairfax County") == "FAIRFAX"
+
+
+def test_join_key_folds_the_spellings_the_rate_files_disagree_on():
+    """Shared by every adapter that joins a state rate file to Census names (F1)."""
+    # Word spacing: the Comptroller's DE SOTO vs the gazetteer's DESOTO (75115).
+    assert join_key("De Soto") == join_key("DeSoto") == "DESOTO"
+    assert join_key("La Salle") == join_key("LaSalle") == "LASALLE"
+    # A leading Saint, abbreviated on either side: ST. HEDWIG vs SAINT HEDWIG (78152),
+    # and Illinois's SAINT CLAIR COUNTY row vs the Census ST. CLAIR county name.
+    assert join_key("St. Hedwig") == join_key("ST HEDWIG") == join_key("Saint Hedwig")
+    assert join_key("ST. CLAIR COUNTY") == join_key("SAINT CLAIR COUNTY") == "SAINTCLAIRCOUNTY"
+    # Interior periods go too; a Saint elsewhere in the name is left where it is.
+    assert join_key("Mt. Prospect") == "MTPROSPECT"
+    assert join_key("  fort   worth ") == "FORTWORTH"
+    # `ST` only expands as a whole leading word: STERLING and STAUNTON are not Saints.
+    assert join_key("Sterling") == "STERLING"
+    assert join_key("Staunton") == "STAUNTON"
 
 
 def test_display_name_fixes_mc_prefixes_and_afb_but_leaves_the_rest_to_title_case():

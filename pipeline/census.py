@@ -53,6 +53,18 @@ def county_short(name: str) -> str:
     return re.sub(r"\s+", " ", _COUNTY_SUFFIX.sub("", n)).upper()
 
 
+def join_key(name: str) -> str:
+    """Key a jurisdiction name for joining a state's rate file to the Census gazetteer,
+    tolerant of the spelling variants the two sources disagree on for the same place
+    (F1). Uppercases, expands a leading ``ST``/``ST.`` to ``SAINT``, drops periods, then
+    strips all remaining whitespace so word-spacing differences never matter. Live cases
+    it settles: Census ``DESOTO`` vs the Texas Comptroller's ``DE SOTO`` (75115), Census
+    ``ST. HEDWIG`` vs its ``SAINT HEDWIG`` (78152), and Census ``ST. CLAIR`` vs the
+    Illinois file's ``SAINT CLAIR COUNTY`` row."""
+    n = re.sub(r"^ST\.?\s+", "SAINT ", name.strip().upper())
+    return re.sub(r"\s+", "", n.replace(".", ""))
+
+
 def display_name(name: str) -> str:
     """Title-case a place/county label for display, then fix what `.title()` mangles:
     a leading ``Mc`` wants its next letter capitalised (``Mcintosh`` -> ``McIntosh``,
