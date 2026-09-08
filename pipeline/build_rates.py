@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import gzip
+import io
 import json
+import os
 from collections import Counter
 from datetime import date
 from pathlib import Path
@@ -65,8 +67,11 @@ def build(census: Census, on: date, states: list[str] | None = None, adapters=No
     print(f"[build] {'state':<7}{'emitted':>9}{'census':>9}{'cover':>9}")
     short: list[str] = []
     for st in sorted(claimed):
+        fips = STATE_FIPS.get(st)
+        if fips is None:
+            raise ValueError(f"adapter claims unknown state code {st!r}")
         got = counts.get(st, 0)
-        total = len(census.zips_in_state(STATE_FIPS[st]))
+        total = len(census.zips_in_state(fips))
         pct = got / total if total else 0.0
         print(f"[build] {st:<7}{got:>9}{total:>9}{pct:>8.1%}")
         if pct < MIN_STATE_COVERAGE:
@@ -78,6 +83,32 @@ def build(census: Census, on: date, states: list[str] | None = None, adapters=No
     print(f"[build] total: {len(rows)} ZIPs across {len(counts)} state codes")
     return assemble(rows, census.centroids, load_categories(),
                     effective=next_quarter_start(on).isoformat(), published=published_at())
+
+
+def _write_atomic(path: Path, data: bytes) -> None:
+    """Write `data` to `path` via a same-directory `.tmp` file plus `os.replace`, so an
+    interrupted or failing write can never leave a truncated file at `path` (F2). Writing
+    in binary mode also sidesteps text-mode newline translation, so `rates.json` keeps
+    its `\\n` line endings verbatim on Windows (F3). Any failure removes the `.tmp` file
+    rather than leaving it behind."""
+    tmp = path.parent / (path.name + ".tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def _gzip_bytes(data: bytes) -> bytes:
+    """Gzip `data` with a zeroed mtime and no embedded filename, so the same document
+    always produces byte-identical output (F1). `gzip.open`/`gzip.compress` stamp the
+    wall-clock build time into the header instead, which would make every build's bytes
+    differ even when the document content is unchanged."""
+    buf = io.BytesIO()
+    with gzip.GzipFile(filename="", mode="wb", fileobj=buf, mtime=0, compresslevel=9) as gz:
+        gz.write(data)
+    return buf.getvalue()
 
 
 def main(out_dir: str, states: list[str]) -> int:
@@ -95,10 +126,10 @@ def main(out_dir: str, states: list[str]) -> int:
         return 1
     out = Path(out_dir) / "v1"
     out.mkdir(parents=True, exist_ok=True)
-    compact = json.dumps(doc, separators=(",", ":"), ensure_ascii=False)
-    with gzip.open(out / "rates.json.gz", "wt", encoding="utf-8", compresslevel=9) as f:
-        f.write(compact)
-    (out / "rates.json").write_text(json.dumps(doc, indent=1, ensure_ascii=False), encoding="utf-8")
+    compact = json.dumps(doc, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    pretty = json.dumps(doc, indent=1, ensure_ascii=False).encode("utf-8")
+    _write_atomic(out / "rates.json.gz", _gzip_bytes(compact))
+    _write_atomic(out / "rates.json", pretty)
     print(f"[build] wrote {out / 'rates.json.gz'} — "
           f"{len(doc['zips'])} ZIPs, {len(doc['profiles'])} profiles")
     return 0

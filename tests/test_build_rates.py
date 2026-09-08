@@ -1,5 +1,6 @@
 import gzip
 import json
+import struct
 from datetime import date
 from decimal import Decimal as D
 
@@ -35,7 +36,7 @@ def wide_census(n=10):
     )
 
 
-def test_build_assembles_validates_and_filters_states(tmp_path):
+def test_build_assembles_validates_and_filters_states():
     a = FakeAdapter("a", ("CA",),
                     [ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Los Angeles, CA")])
     b = FakeAdapter("b", ("OR",), [ZipRate("97205", "OR", D("0"), D("0"), None, "Portland, OR")])
@@ -52,6 +53,13 @@ def test_duplicate_zip_keeps_higher_rate():
     b = FakeAdapter("b", ("CA",), [ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Y, CA")])
     doc = build_rates.build(census(), date(2026, 9, 8), adapters=[a, b])
     assert doc["zips"][0][3].endswith("Y, CA")
+
+
+def test_unknown_state_code_raises_value_error_not_key_error():
+    a = FakeAdapter("a", ("PR",),
+                    [ZipRate("00901", "PR", D("0.105"), D("0"), None, "San Juan, PR")])
+    with pytest.raises(ValueError, match="PR"):
+        build_rates.build(census(), date(2026, 9, 8), adapters=[a])
 
 
 def test_state_coverage_gate_rejects_a_short_state():
@@ -105,3 +113,61 @@ def test_main_refuses_when_a_state_is_short(tmp_path, monkeypatch):
     monkeypatch.setattr(build_rates, "MIN_ZIPS", 1)
     assert build_rates.main(str(tmp_path), []) == 1
     assert not (tmp_path / "v1").exists()
+
+
+def test_gzip_bytes_are_deterministic():
+    """F1: the same document bytes gzip to identical output every time, and the header's
+    MTIME field (bytes 4-7 of the gzip member) is zeroed rather than carrying the build's
+    wall-clock time."""
+    data = json.dumps({"schemaVersion": "1", "zips": []}).encode("utf-8")
+    one = build_rates._gzip_bytes(data)
+    two = build_rates._gzip_bytes(data)
+    assert one == two
+    assert struct.unpack("<I", one[4:8])[0] == 0
+
+
+def test_rates_json_has_no_crlf(tmp_path, monkeypatch):
+    a = FakeAdapter("a", ("CA",),
+                    [ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Los Angeles, CA")])
+    monkeypatch.setattr(build_rates, "_census", census)
+    monkeypatch.setattr(build_rates, "_adapters", lambda: [a])
+    monkeypatch.setattr(build_rates, "MIN_ZIPS", 1)
+    assert build_rates.main(str(tmp_path), []) == 0
+    assert b"\r" not in (tmp_path / "v1" / "rates.json").read_bytes()
+
+
+def test_write_failure_leaves_no_partial_or_tmp_files(tmp_path, monkeypatch):
+    """F2: a write that fails partway through (here, `os.replace` on the gzip file)
+    leaves neither a partial final file nor a leftover `.tmp`."""
+    a = FakeAdapter("a", ("CA",),
+                    [ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Los Angeles, CA")])
+    monkeypatch.setattr(build_rates, "_census", census)
+    monkeypatch.setattr(build_rates, "_adapters", lambda: [a])
+    monkeypatch.setattr(build_rates, "MIN_ZIPS", 1)
+
+    def boom(*_a, **_kw):
+        raise OSError("disk full")
+    monkeypatch.setattr(build_rates.os, "replace", boom)
+
+    with pytest.raises(OSError):
+        build_rates.main(str(tmp_path), [])
+    v1 = tmp_path / "v1"
+    assert not (v1 / "rates.json.gz").exists()
+    assert not (v1 / "rates.json").exists()
+    assert list(v1.glob("*.tmp")) == []
+
+
+def test_main_prints_the_five_sections(tmp_path, monkeypatch, capsys):
+    a = FakeAdapter("a", ("CA",),
+                    [ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Los Angeles, CA")])
+    monkeypatch.setattr(build_rates, "_census", census)
+    monkeypatch.setattr(build_rates, "_adapters", lambda: [a])
+    monkeypatch.setattr(build_rates, "MIN_ZIPS", 1)
+    assert build_rates.main(str(tmp_path), []) == 0
+    out = capsys.readouterr().out
+    assert "[build] adapter a: 1 rows" in out
+    assert "duplicate ZIP rows resolved to the higher rate" in out
+    assert "state" in out and "emitted" in out and "census" in out and "cover" in out
+    assert "CA" in out and "100.0%" in out
+    assert "[build] total: 1 ZIPs across 1 state codes" in out
+    assert "[build] validation: []" in out
