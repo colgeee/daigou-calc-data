@@ -47,10 +47,14 @@ CBC_MAX_AGE_DAYS = 10
 # means one of them is wrong.
 TWD_MAX_SPREAD = Decimal("0.02")
 # ECB publishes on TARGET business days, so a weekend build legitimately carries Friday's
-# date -- three days behind a Monday-morning publish.
-MAX_RATE_AGE_DAYS = 3
+# date -- a Monday UTC build after a Friday ECB date is already three days behind, and a
+# TARGET holiday such as Easter Monday pushes that to four, so the gate needs headroom
+# above four rather than sitting right on it.
+MAX_RATE_AGE_DAYS = 5
 
-MIN_CURRENCIES = 30
+# The live ECB reference table currently carries exactly 30 currencies, so gating on that
+# exact count would break every build the moment a single currency is retired.
+MIN_CURRENCIES = 25
 
 # Observed live: the CBC page intermittently answers 200 with a stub body that carries no
 # rate table. Falling back on the first blip would publish the retail-spread rate when the

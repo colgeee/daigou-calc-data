@@ -162,13 +162,39 @@ def test_validate_fx_gates():
     assert any("stale" in e for e in build_fx.validate_fx(stale))
     few = json.loads(json.dumps(good))
     few["rates"] = {"TWD": "31", "EUR": "0.9"}
-    assert any("at least 30" in e for e in build_fx.validate_fx(few))
+    assert any("at least 25" in e for e in build_fx.validate_fx(few))
     neg = json.loads(json.dumps(good))
     neg["rates"]["EUR"] = "0"
     assert any("positive" in e for e in build_fx.validate_fx(neg))
     wrong_base = json.loads(json.dumps(good))
     wrong_base["base"] = "EUR"
     assert any("USD" in e for e in build_fx.validate_fx(wrong_base))
+
+
+def test_validate_fx_currency_floor_is_25():
+    # A currency retirement off the live ECB table of 30 must not break every build --
+    # 26 clears the floor, 24 (one below it) does not.
+    good = build_fx.compose(FRANK, D("31.53815"), published="2026-09-08T17:00:00Z")
+    plenty = json.loads(json.dumps(good))
+    plenty["rates"] = {f"C{i}": "1.5" for i in range(25)} | {"TWD": "31.5"}
+    assert len(plenty["rates"]) == 26
+    assert build_fx.validate_fx(plenty) == []
+    thin = json.loads(json.dumps(good))
+    thin["rates"] = {f"C{i}": "1.5" for i in range(23)} | {"TWD": "31.5"}
+    assert len(thin["rates"]) == 24
+    assert any("at least 25" in e for e in build_fx.validate_fx(thin))
+
+
+def test_validate_fx_rate_age_gate_is_5_days():
+    # A Monday UTC build after a Friday ECB date is already 3 days behind, and a TARGET
+    # holiday such as Easter Monday pushes that to 4 -- 5 must still pass, 6 must not.
+    good = build_fx.compose(FRANK, D("31.53815"), published="2026-09-08T17:00:00Z")
+    five_days = json.loads(json.dumps(good))
+    five_days["rateDate"] = "2026-09-03"
+    assert build_fx.validate_fx(five_days) == []
+    six_days = json.loads(json.dumps(good))
+    six_days["rateDate"] = "2026-09-02"
+    assert any("stale" in e for e in build_fx.validate_fx(six_days))
 
 
 # --- main -----------------------------------------------------------------------

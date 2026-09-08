@@ -26,19 +26,26 @@ STATE_FIPS: dict[str, str] = {
     "WI": "55", "WY": "56",
 }
 
+## Census LSAD descriptor words are their own fixed casing -- almost always lowercase
+# (``city``, ``town``, ``metro government``, ...), with ``CDP`` the sole uppercase
+# exception -- and that casing is never the casing of a proper name that happens to end
+# in the same word (Carson City, NV's place and county NAMELSAD is literally ``Carson
+# City``: the capitalised ``City`` is part of the name, not an LSAD suffix). So every
+# strip below matches the cased Census string exactly rather than case-insensitively --
+# a case-insensitive match would treat ``Carson City`` as ``Carson`` + a stripped ``City``
+# suffix and mislabel ZIPs 89701/89703 as plain ``Carson, NV``.
 _PLACE_SUFFIX = re.compile(
     r"\s+(city|town|village|borough|CDP|municipality|city and borough|"
     r"consolidated government|metro government|urban county|metropolitan government|"
-    r"unified government|corporation)$",
-    re.I,
+    r"unified government|corporation)$"
 )
-_COUNTY_SUFFIX = re.compile(r"\s+(County|Parish|Borough|Census Area|Municipio)$", re.I)
+_COUNTY_SUFFIX = re.compile(r"\s+(County|Parish|Borough|Census Area|Municipio)$")
 # Label-only cleanup the join key must not get (F1/F2): a Census `NAMELSAD` sometimes
 # parenthesises which part of a consolidated city-county government a record covers --
 # ``Indianapolis city (balance)`` -- and Alaska's independent boroughs spell their type
 # word as a two-word phrase `_COUNTY_SUFFIX` cannot anchor a single trailing word on.
-_BALANCE_SUFFIX = re.compile(r"\s+\(balance\)$", re.I)
-_CITY_AND_BOROUGH_SUFFIX = re.compile(r"\s+City and Borough$", re.I)
+_BALANCE_SUFFIX = re.compile(r"\s+\(balance\)$")
+_CITY_AND_BOROUGH_SUFFIX = re.compile(r"\s+City and Borough$")
 
 
 def parse_gazetteer(text: str) -> dict[str, tuple[float, float]]:
@@ -64,15 +71,23 @@ def parse_relationship(text: str, geoid_col: str, name_col: str) -> dict[str, tu
 
 def _place_short(name: str) -> str:
     """Strip the place-type suffix, keeping the relationship file's own casing:
-    ``McKinney city`` -> ``McKinney``, ``Cañon City city`` -> ``Cañon City``."""
+    ``McKinney city`` -> ``McKinney``, ``Cañon City city`` -> ``Cañon City``. The strip is
+    case-sensitive on `_PLACE_SUFFIX`'s own casing (lowercase ``city``, uppercase ``CDP``,
+    ...), so a proper name that merely ends in a capitalised ``City`` -- ``Carson City``'s
+    own NAMELSAD, with no separate LSAD word appended -- is left untouched rather than
+    read as ``Carson`` + a stripped ``City`` suffix."""
     return re.sub(r"\s+", " ", _PLACE_SUFFIX.sub("", name.strip()))
 
 
 def _county_short(name: str) -> str:
     """Strip the county-type suffix, keeping the relationship file's own casing:
-    ``DuPage County`` -> ``DuPage``, ``Fairfax city`` -> ``Fairfax city``."""
+    ``DuPage County`` -> ``DuPage``, ``Fairfax city`` -> ``Fairfax city``. The lowercase
+    ``city`` LSAD word is matched case-sensitively, same as `_place_short`: it never
+    fires on a proper name that merely ends in a capitalised ``City`` (``Carson City``),
+    which instead falls through to `_COUNTY_SUFFIX` untouched, since none of its
+    alternatives match ``City`` either."""
     n = name.strip()
-    if re.search(r"\scity$", n, re.I):
+    if re.search(r"\scity$", n):
         return re.sub(r"\s+", " ", n)  # independent city (VA, MD, MO, NV)
     return re.sub(r"\s+", " ", _COUNTY_SUFFIX.sub("", n))
 
@@ -169,16 +184,19 @@ class Census:
     def county_display(self, zcta: str) -> str | None:
         """`county_name`'s short form with the Census file's casing kept, but shaped for
         a label rather than a join key (F2): an independent city drops its trailing
-        ` city` (``Williamsburg city`` -> ``Williamsburg``; `county_short`, the join key,
-        keeps it, which is what tells Fairfax city apart from Fairfax County), and
-        Alaska's ``... City and Borough`` entities drop that whole phrase (``Juneau City
-        and Borough`` -> ``Juneau``). Otherwise strips the same `_COUNTY_SUFFIX` as
-        `county_short`: ``DuPage``, ``DeSoto``, ``LaSalle``, ``St. Clair``."""
+        lowercase ` city` LSAD word (``Williamsburg city`` -> ``Williamsburg``;
+        `county_short`, the join key, keeps it, which is what tells Fairfax city apart
+        from Fairfax County), and Alaska's ``... City and Borough`` entities drop that
+        whole phrase (``Juneau City and Borough`` -> ``Juneau``). The ` city` strip is
+        case-sensitive, so a proper name that merely ends in a capitalised ``City``
+        (``Carson City``, NV's own NAMELSAD) is left alone. Otherwise strips the same
+        `_COUNTY_SUFFIX` as `county_short`: ``DuPage``, ``DeSoto``, ``LaSalle``,
+        ``St. Clair``."""
         c = self.county.get(zcta)
         if c is None:
             return None
         n = _CITY_AND_BOROUGH_SUFFIX.sub("", c[1].strip())
-        n = re.sub(r"\s+city$", "", n, flags=re.I)
+        n = re.sub(r"\s+city$", "", n)
         return re.sub(r"\s+", " ", _COUNTY_SUFFIX.sub("", n))
 
     def county_fips3(self, zcta: str) -> str | None:

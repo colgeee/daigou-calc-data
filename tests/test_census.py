@@ -135,6 +135,39 @@ def test_county_display_drops_independent_city_and_city_and_borough():
     assert county_short("Williamsburg city") == "WILLIAMSBURG CITY"
 
 
+def test_capitalised_city_in_a_proper_name_survives_the_suffix_strip():
+    """Live bug: ZIPs 89701/89703 (Carson City, NV) labelled as `Carson, NV` because the
+    suffix strip matched the LSAD word `city` case-insensitively, so it also stripped the
+    capitalised `City` that is part of Carson City's own NAMELSAD -- for both the place
+    and the county-equivalent, the Census string is literally `Carson City` with no
+    separate LSAD word appended. The strip must only fire on the lowercase LSAD spelling,
+    so a real `city city` suffix (Oklahoma City, Texas City, National City) still comes
+    off, and Williamsburg's independent-city marker still behaves as before."""
+    c = Census(
+        centroids={},
+        county={"1": ("32510", "Carson City")},
+        place={
+            "1": ("3212020", "Carson City"),
+            "2": ("4053850", "Oklahoma City city"),
+            "3": ("4872028", "Texas City city"),
+            "4": ("0650258", "National City city"),
+        },
+    )
+    assert c.county_display("1") == "Carson City"
+    assert c.place_display("1") == "Carson City"
+    assert normalize_place("Carson City") == "CARSON CITY"
+    assert county_short("Carson City") == "CARSON CITY"
+    assert c.place_display("2") == "Oklahoma City"
+    assert normalize_place("Oklahoma City city") == "OKLAHOMA CITY"
+    assert c.place_display("3") == "Texas City"
+    assert c.place_display("4") == "National City"
+    # Williamsburg's independent-city ` city` marker (lowercase LSAD, not a proper name)
+    # keeps stripping for the label and keeps riding along in the join key.
+    wb = Census(centroids={}, county={"1": ("51830", "Williamsburg city")}, place={})
+    assert wb.county_display("1") == "Williamsburg"
+    assert county_short("Williamsburg city") == "WILLIAMSBURG CITY"
+
+
 def test_join_key_folds_the_spellings_the_rate_files_disagree_on():
     """Shared by every adapter that joins a state rate file to Census names (F1)."""
     # Word spacing: the Comptroller's DE SOTO vs the gazetteer's DESOTO (75115).
