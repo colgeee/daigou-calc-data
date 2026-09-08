@@ -1,0 +1,9 @@
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+# Phase 2 replaces this with the county local-option table.
+state: MO
+state_rate: "0.04225"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://dor.mo.gov/taxation/business/tax-types/sales-use/rate-tables/
+checked: 2026-09-08

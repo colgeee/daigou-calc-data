@@ -1,0 +1,9 @@
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+# Alaska levies no state sales tax; every rate there is a local one.
+state: AK
+state_rate: "0"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://www.commerce.alaska.gov/
+checked: 2026-09-08

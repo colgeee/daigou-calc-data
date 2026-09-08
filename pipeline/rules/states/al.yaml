@@ -1,0 +1,8 @@
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+state: AL
+state_rate: "0.04"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://www.revenue.alabama.gov/sales-use/
+checked: 2026-09-08

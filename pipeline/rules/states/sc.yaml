@@ -1,0 +1,9 @@
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+# Phase 2 replaces this with the county local-option table.
+state: SC
+state_rate: "0.06"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://dor.sc.gov/tax/sales
+checked: 2026-09-08

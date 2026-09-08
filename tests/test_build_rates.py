@@ -170,4 +170,20 @@ def test_main_prints_the_five_sections(tmp_path, monkeypatch, capsys):
     assert "state" in out and "emitted" in out and "census" in out and "cover" in out
     assert "CA" in out and "100.0%" in out
     assert "[build] total: 1 ZIPs across 1 state codes" in out
+    assert "[build] state-rate-only: 0 of 1 states with rows are localCoverage false" in out
     assert "[build] validation: []" in out
+
+
+def test_summary_counts_the_state_rate_only_states(capsys):
+    """Decision #25: the summary names the states published at the state rate alone, so a
+    local-rate adapter that silently disappears -- or newly lands -- shows in the log."""
+    c = Census(centroids={"80202": (39.75, -104.99), "90012": (34.05, -118.24)},
+               county={"80202": ("08031", "Denver County"),
+                       "90012": ("06037", "Los Angeles County")})
+    a = FakeAdapter("a", ("CO", "CA"), [
+        ZipRate("80202", "CO", D("0.029"), D("0"), None, "Denver, CO"),
+        ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Los Angeles, CA"),
+    ])
+    build_rates.build(c, date(2026, 9, 8), adapters=[a])
+    out = capsys.readouterr().out
+    assert "[build] state-rate-only: 1 of 2 states with rows are localCoverage false (CO)" in out

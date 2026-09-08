@@ -1,0 +1,8 @@
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+state: CO
+state_rate: "0.029"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://tax.colorado.gov/sales-use-tax
+checked: 2026-09-08

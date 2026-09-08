@@ -1,0 +1,10 @@
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+# New Mexico's state gross receipts tax (GRT) rate.
+# Phase 2 replaces this with the county local-option table.
+state: NM
+state_rate: "0.04875"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://www.tax.newmexico.gov/
+checked: 2026-09-08

@@ -29,10 +29,15 @@ python -m pipeline rates --states WA
 
 ## Coverage
 
-Phase 1 covers 42 states + DC — 29 404 ZIPs in the current build, and the validator refuses
-to publish a full build under 25 000. SC, MO, AZ and NM are Phase 2. CO, LA, AL and AK are
-unsupported: their home-rule local taxes are not published per ZIP, so the app asks the user
-for a rate there.
+Every state + DC is published — 33 620 ZIPs in the current build, and the validator refuses
+to publish a full build under 25 000. 42 states + DC carry local rates; CO, LA, AL, AK
+(permanently) and SC, MO, AZ, NM (until Phase 2) carry the state rate only and are flagged
+so the app asks for the local rate.
+
+A flagged state still gets a row per Census ZIP, at its state rate with a zero local rate
+(decision #25); the app reads the `localCoverage: false` flag and shows "unsupported area —
+set your own rate". Publishing no rows at all would leave it unable to place the ZIP, so the
+same phone would see "couldn't get a location" instead.
 
 ## Known limitations
 
@@ -70,8 +75,9 @@ for a rate there.
 - FX (TWD, central bank interbank closing rate): <https://www.cbc.gov.tw/tw/lp-645-1.html>
 - FX (TWD fallback, ExchangeRate-API): <https://open.er-api.com/v6/latest/USD>
 
-Remaining flat/regional states (DE, MT, NH, OR, PA, MA, CT, MD, ME, MS, ID, HI, DC) are
-hand-maintained in `rules/states/<st>.yaml` with a `source` field per state.
+Remaining flat/regional states (DE, MT, NH, OR, PA, MA, CT, MD, ME, MS, ID, HI, DC, VA) and
+the eight state-rate-only ones (CO, LA, AL, AK, SC, MO, AZ, NM) are hand-maintained in
+`rules/states/<st>.yaml` with a `source` field per state.
 
 ## Licence
 

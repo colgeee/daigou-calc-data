@@ -1,0 +1,10 @@
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+# Arizona's state transaction privilege tax (TPT) rate.
+# Phase 2 replaces this with the county local-option table.
+state: AZ
+state_rate: "0.056"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://azdor.gov/transaction-privilege-tax-tpt
+checked: 2026-09-08

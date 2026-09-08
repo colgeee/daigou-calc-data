@@ -15,8 +15,10 @@ from pipeline.census import STATE_FIPS, Census
 from pipeline.model import ZipRate, assemble
 from pipeline.validate import validate
 
-# The 2024 gazetteer carries 33 791 ZCTAs and the covered states hold ~29 400 of them, so a
-# full build has to clear 25 000 rows to be publishable (decision #21).
+# The 2024 gazetteer carries 33 791 ZCTAs and a full build now prices ~33 600 of them --
+# every state, since decision #25 publishes the eight without a local-rate source at their
+# state rate -- so a build has to clear 25 000 rows to be publishable (decision #21). The
+# per-state gate below is the tighter check: this floor only catches a wholesale collapse.
 MIN_ZIPS = 25000
 # Per-state floor: an adapter that silently loses most of its state still clears MIN_ZIPS,
 # so every state an adapter claims must emit at least this share of its Census ZCTAs.
@@ -81,7 +83,14 @@ def build(census: Census, on: date, states: list[str] | None = None, adapters=No
             f"state coverage below {MIN_STATE_COVERAGE:.0%}: " + ", ".join(short)
         )
     print(f"[build] total: {len(rows)} ZIPs across {len(counts)} state codes")
-    return assemble(rows, census.centroids, load_categories(),
+    categories = load_categories()
+    # Decision #25: a state with no local-rate source is still published, at the state rate
+    # with local 0, and the app asks the user for the local rate there. Print the count so a
+    # local-rate adapter silently lost (or newly landed) shows up in the build log.
+    flagged = sorted(s for s in counts if not categories.get(s, {}).get("localCoverage", True))
+    print(f"[build] state-rate-only: {len(flagged)} of {len(counts)} states with rows "
+          f"are localCoverage false ({', '.join(flagged) if flagged else 'none'})")
+    return assemble(rows, census.centroids, categories,
                     effective=next_quarter_start(on).isoformat(), published=published_at())
 
 

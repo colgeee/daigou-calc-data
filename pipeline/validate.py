@@ -34,8 +34,8 @@ def _rule(r: dict, where: str, errors: list[str]) -> None:
         errors.append(f"{where}: unknown rule type {t!r}")
 
 
-# Default mirrors build_rates.MIN_ZIPS (decision #21): the covered states' ZCTAs total
-# ~29 400 against a 33 791 nationwide count, so the earlier 38 000 floor was unreachable.
+# Default mirrors build_rates.MIN_ZIPS (decision #21): a full build now prices ~33 600 ZCTAs
+# against a 33 791 nationwide count, so the earlier 38 000 floor was unreachable.
 def validate(doc: dict, *, min_zips: int = 25000) -> list[str]:
     errors: list[str] = []
     if doc.get("schemaVersion") != "1":

@@ -28,7 +28,7 @@ def census():
 
 def test_every_yaml_loads_and_has_required_fields():
     files = sorted(RULES.glob("*.yaml"))
-    assert len(files) == 14
+    assert len(files) == 22   # 14 flat/regional + the 8 state-rate-only states (decision #25)
     for f in files:
         t = yaml_states.load_state(f)
         assert t.state == f.stem.upper() and D("0") <= t.state_rate <= D("0.08"), f
@@ -75,3 +75,26 @@ def test_labels_keep_the_census_casing():
 def test_state_fips_map_covers_all_yaml_states():
     for f in RULES.glob("*.yaml"):
         assert f.stem.upper() in yaml_states.FIPS
+    assert len(yaml_states.YamlStatesAdapter().states) == 22
+
+
+def test_state_rate_only_states_publish_the_state_rate_and_no_local():
+    """Decision #25: the eight states with no local-rate source still get a row per ZIP, at
+    the state rate with `local_rate` 0 and no food rate, so the app can place the ZIP and
+    flag it as `localCoverage: false` rather than failing with "couldn't get a location"."""
+    c = Census(
+        centroids={"80202": (39.75, -104.99), "99501": (61.21, -149.87)},
+        county={"80202": ("08031", "Denver County"),
+                "99501": ("02020", "Anchorage Municipality")},
+        place={"80202": ("0820000", "Denver city"), "99501": ("0203000", "Anchorage municipality")},
+    )
+    rows = {r.zip: r for r in yaml_states.YamlStatesAdapter().rows(c, date(2026, 9, 8))}
+    assert rows["80202"].state == "CO"
+    assert rows["80202"].state_rate == D("0.029")
+    assert rows["80202"].local_rate == D("0")
+    assert rows["80202"].food_drug_rate is None
+    assert rows["80202"].label == "Denver, CO"
+    assert rows["99501"].state == "AK"
+    assert rows["99501"].state_rate == D("0")     # Alaska levies no state sales tax
+    assert rows["99501"].local_rate == D("0")
+    assert rows["99501"].food_drug_rate is None

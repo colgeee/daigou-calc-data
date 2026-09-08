@@ -1,0 +1,9 @@
+# State rate only — no local-rate source yet; the app flags this state as localCoverage: false (decision #25).
+# State rate is 5 % from 2025-01-01 under Act 11 of 2024.
+state: LA
+state_rate: "0.05"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+source: https://revenue.louisiana.gov/SalesTax
+checked: 2026-09-08

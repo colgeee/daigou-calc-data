@@ -18,7 +18,7 @@ defaults:
   alcohol: general
   confidence: {supplement: medium}
 states:
-  # ---- no coverage of local rates (decision #2 in the app spec) ----
+  # ---- home rule, so no per-ZIP local rates ever (decision #2 in the app spec) ----
   CO: {localCoverage: false, grocery: exempt, confidence: {supplement: low, alcohol: low}}
   LA: {localCoverage: false, grocery: localOnly, confidence: {grocery: low, supplement: low, alcohol: low}}
   AL: {localCoverage: false, grocery: {stateReplaced: "0.03"}, confidence: {grocery: medium, supplement: low, alcohol: low}}
@@ -70,8 +70,8 @@ states:
   WI: {grocery: exempt, prescription: exempt}
   WV: {prescription: exempt}                                # grocery via foodDrugRate
   WY: {grocery: exempt, prescription: exempt}
-  # ---- Phase 2 states (no ZIPs yet; rules ready) ----
-  SC: {grocery: exempt}
-  MO: {grocery: {stateReplaced: "0.01225"}, confidence: {grocery: medium}}
-  AZ: {grocery: exempt, confidence: {grocery: medium}}
-  NM: {grocery: exempt, confidence: {grocery: medium}}
+  # ---- state rate published, local rates still to come (decision #25) ----
+  SC: {localCoverage: false, grocery: exempt}                 # Phase 2: flip to true when the local-rate adapter lands
+  MO: {localCoverage: false, grocery: {stateReplaced: "0.01225"}, confidence: {grocery: medium}}  # Phase 2: flip to true when the local-rate adapter lands
+  AZ: {localCoverage: false, grocery: exempt, confidence: {grocery: medium}}  # Phase 2: flip to true when the local-rate adapter lands
+  NM: {localCoverage: false, grocery: exempt, confidence: {grocery: medium}}  # Phase 2: flip to true when the local-rate adapter lands
