@@ -3,16 +3,16 @@
 # Usage: scripts/publish.sh "<commit message>"
 #
 # Idempotent: it commits only when a published file actually changed, and it copies over a
-# checkout of gh-pages, so files that this build did not produce (e.g. the quarterly
-# rates file during a daily fx run) are carried forward untouched.
+# checkout of gh-pages, so anything already published that this build did not produce is
+# carried forward untouched.
 set -euo pipefail
 
 # The exact published set, named rather than globbed: `cp out/v1/*` would publish whatever
 # happens to sit in the directory -- a stray `.tmp` from an interrupted write, a renamed
 # file from an older build -- and would silently publish nothing at all if the build wrote
-# nothing. The fx workflow restores the current rates files into out/v1 before calling
-# this, so all three are expected on every run.
-FILES=(rates.json.gz rates.json fx.json)
+# nothing. Both files come out of the same `python -m pipeline rates` run, so both are
+# expected on every run.
+FILES=(rates.json.gz rates.json)
 
 msg="${1:-publish}"
 cd "$(git rev-parse --show-toplevel)"
@@ -27,7 +27,7 @@ for f in "${FILES[@]}"; do
 done
 if [ ${#bad[@]} -ne 0 ]; then
   echo "publish: REFUSING TO PUBLISH -- out/v1 is incomplete: ${bad[*]}" >&2
-  echo "publish: build first (python -m pipeline rates / python -m pipeline fx)" >&2
+  echo "publish: build first (python -m pipeline rates)" >&2
   exit 1
 fi
 
@@ -91,9 +91,12 @@ mkdir -p "$work/v1"
 for f in "${FILES[@]}"; do
   cp "out/v1/$f" "$work/v1/$f"
 done
+# The pipeline no longer publishes exchange rates -- the app fetches them itself -- so
+# sweep away the fx.json left behind by the builds that did.
+git -C "$work" rm -q --ignore-unmatch v1/fx.json
 cat > "$work/index.html" <<'EOF'
 <!doctype html><meta charset="utf-8"><title>daigou-calc-data</title>
-<p>Static data for 代購算盤 Daigou Calc: <a href="v1/rates.json.gz">v1/rates.json.gz</a> (quarterly), <a href="v1/fx.json">v1/fx.json</a> (daily). Source: <a href="https://github.com/colgeee/daigou-calc-data">github.com/colgeee/daigou-calc-data</a>.</p>
+<p>Static data for 代購算盤 Daigou Calc: <a href="v1/rates.json.gz">v1/rates.json.gz</a> (quarterly). Exchange rates are not published here — the app fetches them directly. Source: <a href="https://github.com/colgeee/daigou-calc-data">github.com/colgeee/daigou-calc-data</a>.</p>
 EOF
 touch "$work/.nojekyll"
 git -C "$work" add -A

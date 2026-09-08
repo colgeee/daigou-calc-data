@@ -10,14 +10,9 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument(
         "--states", default="", help="comma-separated state codes to limit the build (dev only)"
     )
-    f = sub.add_parser("fx", help="build out/v1/fx.json")
-    f.add_argument("--out", default="out")
     args = p.parse_args(argv)
-    if args.cmd == "rates":
-        from pipeline.build_rates import main as run
-        return run(args.out, [s for s in args.states.upper().split(",") if s])
-    from pipeline.build_fx import main as run
-    return run(args.out)
+    from pipeline.build_rates import main as run
+    return run(args.out, [s for s in args.states.upper().split(",") if s])
 
 
 if __name__ == "__main__":

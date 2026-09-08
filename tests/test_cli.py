@@ -10,7 +10,15 @@ def test_help_runs():
         [sys.executable, "-m", "pipeline", "--help"], capture_output=True, text=True
     )
     assert out.returncode == 0
-    assert "rates" in out.stdout and "fx" in out.stdout
+    assert "rates" in out.stdout
+
+
+def test_fx_subcommand_is_gone():
+    out = subprocess.run(
+        [sys.executable, "-m", "pipeline", "fx"], capture_output=True, text=True
+    )
+    assert out.returncode != 0
+    assert "invalid choice" in out.stderr
 
 
 def test_quarter_start():

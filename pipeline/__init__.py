@@ -1,4 +1,4 @@
-"""Builds Daigou Calc's rates.json.gz and fx.json from official public sources."""
+"""Builds Daigou Calc's rates.json.gz from official public sources."""
 from datetime import UTC, date, datetime
 
 VERSION = "1"

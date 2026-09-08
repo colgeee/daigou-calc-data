@@ -1,19 +1,25 @@
 # daigou-calc-data
 
 Data pipeline for 代購算盤 Daigou Calc: it compiles US sales-tax rates by ZIP code from
-official state and federal sources, plus a daily USD exchange-rate snapshot, and publishes
-them as two static JSON files (`rates.json.gz`, `fx.json`) via GitHub Pages. Rates are
-rebuilt quarterly (rates are effective from calendar-quarter starts); FX is refreshed daily.
+official state and federal sources and publishes them as a static JSON file
+(`rates.json.gz`) via GitHub Pages. It is rebuilt quarterly, since rates are effective from
+calendar-quarter starts.
 
 ## Published files
 
 | File | URL | Rebuilt |
 | --- | --- | --- |
 | Rates | <https://colgeee.github.io/daigou-calc-data/v1/rates.json.gz> | quarterly — 2 Jan / 2 Apr / 2 Jul / 2 Oct, 06:00 UTC (`.github/workflows/rates.yml`) |
-| FX | <https://colgeee.github.io/daigou-calc-data/v1/fx.json> | daily — 17:05 UTC, after the ECB's 16:00 CET publication (`.github/workflows/fx.yml`) |
 
-Both files are served from the `gh-pages` branch, which `scripts/publish.sh` rewrites after a
-successful build. GitHub Pages returns an `ETag` on each; the app sends it back as
+## Exchange rates
+
+Exchange rates are no longer published here — the app fetches them itself from
+<https://api.exchangerate.fun/> (refreshed hourly, no API key) and lets the user override
+the rate for the selected currency. The daily FX workflow that used to build `v1/fx.json`
+is gone.
+
+The file is served from the `gh-pages` branch, which `scripts/publish.sh` rewrites after a
+successful build. GitHub Pages returns an `ETag`; the app sends it back as
 `If-None-Match`, so an unchanged file costs a 304 and no download. An uncompressed
 `v1/rates.json` sits beside the gzip for debugging.
 
@@ -23,7 +29,6 @@ successful build. GitHub Pages returns an `ETag` on each; the app sends it back 
 python -m venv .venv
 source .venv/Scripts/activate  # Windows Git Bash; use .venv\Scripts\activate on cmd/PowerShell
 pip install -r requirements.txt
-python -m pipeline fx
 python -m pipeline rates --states WA
 ```
 
@@ -55,8 +60,6 @@ same phone would see "couldn't get a location" instead.
 - Florida's $5 000 cap on the single-item discretionary surtax is not modelled.
 - Streamlined food and drug rates are published only where a state actually has a reduced
   rate for them.
-- TWD is Taiwan's central bank interbank closing rate (mid-market); every other currency is
-  an ECB reference rate. Neither is a retail rate a card issuer would apply.
 
 ## Sources
 
@@ -71,9 +74,6 @@ same phone would see "couldn't get a location" instead.
 - New York: <https://www.tax.ny.gov/pdf/publications/sales/pub718.pdf>
 - Florida: <https://floridarevenue.com/Forms_library/current/dr15dss.pdf>
 - Virginia: <https://www.tax.virginia.gov/retail-sales-and-use-tax>
-- FX (ECB via Frankfurter): <https://api.frankfurter.dev/v1/latest?base=USD>
-- FX (TWD, central bank interbank closing rate): <https://www.cbc.gov.tw/tw/lp-645-1.html>
-- FX (TWD fallback, ExchangeRate-API): <https://open.er-api.com/v6/latest/USD>
 
 Remaining flat/regional states (DE, MT, NH, OR, PA, MA, CT, MD, ME, MS, ID, HI, DC, VA) and
 the eight state-rate-only ones (CO, LA, AL, AK, SC, MO, AZ, NM) are hand-maintained in
@@ -81,6 +81,6 @@ the eight state-rate-only ones (CO, LA, AL, AK, SC, MO, AZ, NM) are hand-maintai
 
 ## Licence
 
-The published tax-rate and exchange-rate facts are public government/public data and are
-not subject to copyright. The pipeline code in this repository is licensed under the MIT
-License; see [LICENSE](LICENSE).
+The published tax-rate facts are public government/public data and are not subject to
+copyright. The pipeline code in this repository is licensed under the MIT License; see
+[LICENSE](LICENSE).
