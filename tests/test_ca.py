@@ -16,6 +16,14 @@ HEADER = (
 TAIL = "7/1/2026 7:00:00 AM,5/11/2026 7:00:00 AM,1,1"
 
 
+@pytest.fixture(autouse=True)
+def _low_min_jurisdictions(monkeypatch):
+    """The jurisdiction-count guard defaults to 400; every test here builds a handful of
+    rows inline (or reads the 4-row fixture), so lower it for all of them. The tests that
+    exercise the guard itself put it back within their own body."""
+    monkeypatch.setattr(ca, "MIN_JURISDICTIONS", 1)
+
+
 def csv_text(*rows: str) -> str:
     return "\n".join((HEADER, *rows)) + "\n"
 
@@ -74,6 +82,39 @@ def test_parse_ignores_a_future_dated_row_until_on_reaches_it():
 def test_parse_rejects_a_rate_below_the_state_rate():
     with pytest.raises(ValueError, match="BOGUS"):
         ca.parse(csv_text(f"1,BOGUS,ALPINE,BOGUS,Bogus,0.06,4/1/2025 7:00:00 AM,{TAIL}"))
+
+
+def test_parse_raises_when_too_few_jurisdictions(monkeypatch):
+    """The one CI failure this pipeline has had was CDTFA answering 200 with a well-formed
+    CSV of zero jurisdictions. A table that far below the live 540 must fail the build,
+    not drop every California ZIP silently."""
+    monkeypatch.setattr(ca, "MIN_JURISDICTIONS", 400)
+    with pytest.raises(ValueError, match="only 2 jurisdictions"):
+        ca.parse(
+            csv_text(
+                f"1,DUBLIN,ALAMEDA,DUBLIN,Dublin,0.1025,4/1/2025 7:00:00 AM,{TAIL}",
+                f"2,ALAMEDA,ALAMEDA,UNINCORPORATED,Unincorporated,0.1025,"
+                f"4/1/2025 7:00:00 AM,{TAIL}",
+            )
+        )
+    # The empty-CSV shape itself: a well-formed header and nothing under it.
+    with pytest.raises(ValueError, match="only 0 jurisdictions"):
+        ca.parse(csv_text())
+
+
+def test_parse_does_not_raise_once_min_jurisdictions_is_met(monkeypatch):
+    """The companion to the guard test: with the floor at the number of rows actually
+    present, the same parse comes back with its table intact."""
+    monkeypatch.setattr(ca, "MIN_JURISDICTIONS", 2)
+    t = ca.parse(
+        csv_text(
+            f"1,DUBLIN,ALAMEDA,DUBLIN,Dublin,0.1025,4/1/2025 7:00:00 AM,{TAIL}",
+            f"2,ALAMEDA,ALAMEDA,UNINCORPORATED,Unincorporated,0.1025,"
+            f"4/1/2025 7:00:00 AM,{TAIL}",
+        )
+    )
+    assert t[("ALAMEDA", "DUBLIN")][0] == D("0.1025")
+    assert t[("ALAMEDA", "")][0] == D("0.1025")
 
 
 def test_rows_match_place_then_unincorporated_then_drop(monkeypatch):

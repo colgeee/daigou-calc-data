@@ -63,10 +63,12 @@ def rows_for(table: StateTable, census: Census) -> Iterable[ZipRate]:
         elif census.county_name(zip5) in table.county_rates:
             local = table.county_rates[census.county_name(zip5)]
         # The Census's own casing is the label (C1) -- `O'Fallon`, `McKeesport`, not what
-        # `.title()` makes of an uppercased name. `display_name` re-cases only the
-        # fallback, for a ZIP the relationship files name no place or county for.
-        name = census.place_display(zip5) or census.county_display(zip5)
-        if name is None:
+        # `.title()` makes of an uppercased name. A ZIP with no place reads as its county
+        # the way the Census names it, entity word and all (`Accomack County`, `Acadia
+        # Parish`), bar an independent city (`Williamsburg`). `display_name` re-cases only
+        # the last-ditch fallback, for a ZIP the files name no place or county for.
+        name = census.place_display(zip5) or census.county_label(zip5)
+        if not name:
             name = display_name(place or census.county_name(zip5) or table.state)
         label = f"{name}, {table.state}"
         yield ZipRate(zip5, table.state, table.state_rate, local, table.food_drug_rate, label)

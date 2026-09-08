@@ -18,5 +18,19 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
       - run: python -m pipeline rates
+      # The quarterly rates publish must not hinge on the FX sources being reachable: this
+      # run's job is the rates file, and fx.json is refreshed daily by its own workflow
+      # anyway. A failed FX build is therefore not fatal here -- the step below restores
+      # the currently-published fx.json in its place, the mirror of fx.yml's "keep the
+      # current rates file" guard -- so `publish.sh`'s three-file gate still holds.
       - run: python -m pipeline fx
+        continue-on-error: true
+      - name: keep the current fx file when this run's fx build failed
+        run: |
+          if [ ! -f out/v1/fx.json ]; then
+            git fetch origin gh-pages:gh-pages || true
+            if git cat-file -e gh-pages:v1/fx.json 2>/dev/null; then
+              git show gh-pages:v1/fx.json > out/v1/fx.json
+            fi
+          fi
       - run: bash scripts/publish.sh "rates $(date -u +%F)"

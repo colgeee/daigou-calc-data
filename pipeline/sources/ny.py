@@ -145,7 +145,10 @@ class NyAdapter:
                 # separately, or a city row whose county did not match: the ZIP pays its
                 # county's combined rate.
                 kind, total = "county", counties.get(county_key)
-                label = f"{census.county_display(zip5) or display_name(county)} County, NY"
+                # The county label is the Census's own name, casing and entity word
+                # included (C1/F5); `display_name` supplies both only as the fallback.
+                name = census.county_label(zip5) or f"{display_name(county)} County"
+                label = f"{name}, NY"
             if total is None:
                 dropped[county] = dropped.get(county, 0) + 1
                 continue

@@ -9,7 +9,7 @@ from collections import Counter
 from datetime import date
 from pathlib import Path
 
-from pipeline import build_date, next_quarter_start, published_at
+from pipeline import build_date, published_at, quarter_start
 from pipeline.categories import load as load_categories
 from pipeline.census import STATE_FIPS, Census
 from pipeline.model import ZipRate, assemble
@@ -43,12 +43,50 @@ def _adapters():
     return list(REGISTRY)
 
 
+def check_partition(adapters: list) -> None:
+    """Every state + DC must be claimed by exactly one adapter (F4).
+
+    The per-state coverage gate below only measures the states an adapter actually claims,
+    so an adapter dropped from the registry -- or one whose `states` tuple loses an entry in
+    a refactor -- takes its states out of the build without tripping anything: the remaining
+    ~33 000 ZIPs still clear `MIN_ZIPS`, and the app would simply stop being able to place a
+    ZIP anywhere in the missing state. A state claimed twice is the other half of the same
+    invariant: two adapters then race for the same ZIPs, resolved only by whichever happens
+    to compose the higher rate.
+
+    Raises ``ValueError`` naming the difference in either direction."""
+    claimed: dict[str, list[str]] = {}
+    for a in adapters:
+        for st in a.states:
+            claimed.setdefault(st, []).append(a.name)
+    missing = sorted(set(STATE_FIPS) - set(claimed))
+    unknown = sorted(set(claimed) - set(STATE_FIPS))
+    twice = sorted(f"{st} ({'+'.join(n)})" for st, n in claimed.items() if len(n) > 1)
+    problems = []
+    if missing:
+        problems.append(f"no adapter claims {', '.join(missing)}")
+    if unknown:
+        problems.append(f"claimed but not a state code: {', '.join(unknown)}")
+    if twice:
+        problems.append(f"claimed by more than one adapter: {', '.join(twice)}")
+    if problems:
+        raise ValueError(
+            f"the {len(adapters)} adapters must partition all {len(STATE_FIPS)} states "
+            f"+ DC -- " + "; ".join(problems)
+        )
+
+
 def build(census: Census, on: date, states: list[str] | None = None, adapters=None) -> dict:
     want = set(states or [])
+    resolved = list(adapters) if adapters is not None else _adapters()
+    if states is None:
+        # A `--states` build is deliberately partial, so the partition is an invariant of
+        # the full quarterly build alone.
+        check_partition(resolved)
     best: dict[str, ZipRate] = {}
     dupes = 0
     claimed: set[str] = set()
-    for adapter in adapters if adapters is not None else _adapters():
+    for adapter in resolved:
         if want and not (set(adapter.states) & want):
             continue
         claimed |= {s for s in adapter.states if not want or s in want}
@@ -91,7 +129,7 @@ def build(census: Census, on: date, states: list[str] | None = None, adapters=No
     print(f"[build] state-rate-only: {len(flagged)} of {len(counts)} states with rows "
           f"are localCoverage false ({', '.join(flagged) if flagged else 'none'})")
     return assemble(rows, census.centroids, categories,
-                    effective=next_quarter_start(on).isoformat(), published=published_at())
+                    effective=quarter_start(on).isoformat(), published=published_at())
 
 
 def _write_atomic(path: Path, data: bytes) -> None:

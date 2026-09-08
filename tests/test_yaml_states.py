@@ -57,19 +57,24 @@ def test_labels_keep_the_census_casing():
     `Mckeesport` and `Dubois`. A ZIP the place file does not name reads as its county.
     Williamsburg's trailing ` city` marker is dropped for the label (F2); the join key
     that priced it still carries it, which is what keeps it apart from a same-named
-    county elsewhere."""
+    county elsewhere. A ZIP with no place reads as its county the way the Census names
+    it, entity word and all (F5) -- `Lancaster County`, not the bare `Lancaster` this
+    adapter used to publish, and `Acadia Parish` rather than a Louisiana parish miscalled
+    a county."""
     c = Census(
         centroids={"15132": (40.34, -79.86), "15801": (41.12, -78.76), "23185": (37.27, -76.7),
-                   "17545": (40.17, -76.42)},
+                   "17545": (40.17, -76.42), "70518": (30.1, -92.0)},
         county={"15132": ("42003", "Allegheny County"), "15801": ("42033", "Clearfield County"),
-                "23185": ("51830", "Williamsburg city"), "17545": ("42071", "Lancaster County")},
+                "23185": ("51830", "Williamsburg city"), "17545": ("42071", "Lancaster County"),
+                "70518": ("22001", "Acadia Parish")},
         place={"15132": ("4245728", "McKeesport city"), "15801": ("4219432", "DuBois city")},
     )
     rows = {r.zip: r for r in yaml_states.YamlStatesAdapter().rows(c, date(2026, 9, 8))}
     assert rows["15132"].label == "McKeesport, PA"
     assert rows["15801"].label == "DuBois, PA"
     assert rows["23185"].label == "Williamsburg, VA"  # an independent city is a county
-    assert rows["17545"].label == "Lancaster, PA"          # no place: the county
+    assert rows["17545"].label == "Lancaster County, PA"    # no place: the county
+    assert rows["70518"].label == "Acadia Parish, LA"       # a parish, not a "County"
 
 
 def test_state_fips_map_covers_all_yaml_states():

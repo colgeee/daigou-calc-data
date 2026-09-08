@@ -119,6 +119,54 @@ def test_place_display_drops_balance_and_entity_phrases_the_join_key_keeps():
     assert normalize_place(raw["cusseta"]) == "CUSSETA-CHATTAHOOCHEE COUNTY"
 
 
+def test_county_label_keeps_the_census_entity_word_verbatim():
+    """F5: the county form a **label** wants is the Census `NAMELSAD` as published, entity
+    word and all, so an adapter's county fallback says what kind of jurisdiction it is
+    instead of appending a hard-coded ` County` to a stripped short name -- which read
+    Louisiana's parishes as counties, Alaska's boroughs as counties, and left Virginia's
+    counties (whose adapter appended nothing) with no entity word at all."""
+    c = Census(
+        centroids={},
+        county={
+            "1": ("17043", "DuPage County"), "2": ("22001", "Acadia Parish"),
+            "3": ("02013", "Aleutians East Borough"),
+            "4": ("02290", "Yukon-Koyukuk Census Area"),
+            "5": ("02230", "Skagway Municipality"),
+            "6": ("02110", "Juneau City and Borough"),
+            "7": ("51001", "Accomack County"), "8": ("12027", "DeSoto County"),
+            "9": ("17163", "St. Clair County"),
+        },
+        place={},
+    )
+    assert [c.county_label(z) for z in "123456789"] == [
+        "DuPage County", "Acadia Parish", "Aleutians East Borough",
+        "Yukon-Koyukuk Census Area", "Skagway Municipality", "Juneau City and Borough",
+        "Accomack County", "DeSoto County", "St. Clair County",
+    ]
+    assert c.county_label("00000") is None
+
+
+def test_county_label_bares_an_independent_city_but_not_carson_city():
+    """The one name `county_label` does not return verbatim: an independent city, whose
+    LSAD word is the lowercase ` city` -- `Williamsburg city, VA` reads as a typo rather
+    than as a jurisdiction type. The strip is case-sensitive, so Carson City's capitalised
+    `City` (part of the name, not an LSAD word) survives, as it does everywhere else."""
+    c = Census(
+        centroids={},
+        county={
+            "1": ("51830", "Williamsburg city"), "2": ("32510", "Carson City"),
+            "3": ("24510", "Baltimore city"), "4": ("29510", "St. Louis city"),
+            "5": ("51600", "Fairfax city"),
+        },
+        place={},
+    )
+    assert [c.county_label(z) for z in "12345"] == [
+        "Williamsburg", "Carson City", "Baltimore", "St. Louis", "Fairfax"]
+    # The join key is untouched: Fairfax city and Fairfax County still key apart.
+    assert county_short("Fairfax city") == "FAIRFAX CITY"
+    assert county_short("Fairfax County") == "FAIRFAX"
+
+
 def test_county_display_drops_independent_city_and_city_and_borough():
     """F2: an independent city's ` city` marker and Alaska's `City and Borough` phrase
     are both dropped for the label; the join key (`county_short`) keeps the former so

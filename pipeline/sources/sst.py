@@ -31,6 +31,18 @@ _MONTHS = {
 _FILE = re.compile(r"/([A-Z]{2})([RB])(\d{4})Q(\d)([A-Z]{3})(\d{1,2})\.(?:csv|zip)", re.I)
 _HREF = re.compile(r'HREF="([^"]+)"', re.I)
 OPEN_END = date(9999, 12, 31)
+# A floor on the state's own share of the composed rate, for a state whose SST file does
+# not put it in the state-level (jtype 45) row.
+#
+# Nevada files its 45 row at 0 and carries the whole 6.85 % statewide minimum in county
+# rows, so every Nevada profile published a `stateRate` of "0" with 6.85-8.375 % as local:
+# an app that shows the split, or lets the user override the local part, reads that as a
+# state with no sales tax at all. The floor is the statutory statewide minimum -- 2 % State
+# (NRS 372.105/.185) + 2.6 % Local School Support + 2.25 % Basic City-County Relief -- so
+# `compose` publishes 6.85 % as the state share and only what a county levies above it as
+# local. Nevada's lowest county rate is exactly 6.85 %, so no ZIP goes negative, and the
+# general rate (state + local) is identical either way.
+STATE_RATE_FLOOR: dict[str, Decimal] = {"NV": Decimal("0.0685")}
 
 
 @dataclass(frozen=True)
@@ -142,6 +154,10 @@ def compose(
     st = next((r for (t, _), r in cur.items() if t == 45), None)
     if st is None:
         raise ValueError(f"{state}: no current state-level (45) rate row")
+    # The published state share: the file's own 45 row, unless the state files it below the
+    # statutory statewide minimum (Nevada files 0), in which case the minimum stands in and
+    # the local share is what a jurisdiction levies on top of it. `general` is untouched.
+    state_rate = max(st.general, STATE_RATE_FLOOR.get(state, st.general))
     best: dict[str, ZipRate] = {}
     # A Z row's range is only a hint: it can span a county line into a neighbour state
     # (or reach ZIPs that were retired), so the census's own state membership gates
@@ -161,6 +177,17 @@ def compose(
             if (2, code) in cur:
                 general += cur[(2, code)].general
                 food += cur[(2, code)].food
+        # What the jurisdictions on this row levy above the published state share. Nevada
+        # files its lowest county at exactly the 6.85 % floor, so nothing composes below it
+        # today; a row that did would mean the floor is wrong for the state, and the build
+        # must fail rather than publish a negative local rate.
+        local_rate = general - state_rate
+        if local_rate < 0:
+            raise ValueError(
+                f"{state}: ZIPs {z.zip_low}-{z.zip_high} (county {z.county!r}, place "
+                f"{z.place!r}) compose to {general}, below the published state share "
+                f"{state_rate} -- the state-rate floor is wrong for this state"
+            )
         lo = z.zip_low.zfill(5)
         hi = (z.zip_high or z.zip_low).zfill(5)
         if int(hi) - int(lo) > 100:
@@ -172,17 +199,19 @@ def compose(
         for zip5 in candidates:
             if zip5 not in in_state or zip5 not in census.centroids:
                 continue
-            # The Census's own casing is the label (C1); `display_name` re-cases only the
-            # fallback, for a ZIP the relationship files name neither a place nor a
-            # county for -- which leaves the state code itself as the only label.
-            name = census.place_display(zip5) or census.county_display(zip5)
-            if name is None:
+            # The Census's own casing is the label (C1). A ZIP with no place reads as its
+            # county the way the Census names it, entity word and all (`King County`,
+            # `Aleutians East Borough`); `display_name` re-cases only the last-ditch
+            # fallback, for a ZIP the relationship files name neither a place nor a county
+            # for -- which leaves the state code itself as the only label.
+            name = census.place_display(zip5) or census.county_label(zip5)
+            if not name:
                 name = display_name(census.place_name(zip5) or census.county_name(zip5) or state)
             label = f"{name}, {state}"
             # The food/drug columns repeat the general rate where a state has no reduced
             # grocery rate; that is not a food rate, so only a genuinely lower one is kept.
             cand = ZipRate(
-                zip5, state, st.general, general - st.general,
+                zip5, state, state_rate, local_rate,
                 None if food == general else food, label,
             )
             if zip5 not in best or cand.general_rate > best[zip5].general_rate:

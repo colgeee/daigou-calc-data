@@ -138,10 +138,11 @@ class FlAdapter:
             # outright in Florida, not reduced-rated, so there is no second rate to
             # publish.
             #
-            # The Census's own casing is the label (C1): `DeSoto County, FL`, not the
-            # `Desoto` a re-cased uppercase name gives. `display_name` is the fallback.
-            name = census.county_display(zip5) or display_name(county)
-            yield ZipRate(zip5, "FL", STATE_RATE, surtax, None, f"{name} County, FL")
+            # The Census's own name is the label, casing and entity word included (C1/F5):
+            # `DeSoto County, FL`, not the `Desoto` a re-cased uppercase name gives.
+            # `display_name` supplies both only as the fallback.
+            name = census.county_label(zip5) or f"{display_name(county)} County"
+            yield ZipRate(zip5, "FL", STATE_RATE, surtax, None, f"{name}, FL")
         missing = f": {', '.join(sorted(dropped))}" if dropped else ""
         print(
             f"[fl] {kept} ZIPs priced at their county's surtax, {sum(dropped.values())} "

@@ -2,7 +2,7 @@ import subprocess
 import sys
 from datetime import date
 
-from pipeline import next_quarter_start
+from pipeline import quarter_start
 
 
 def test_help_runs():
@@ -13,7 +13,7 @@ def test_help_runs():
     assert "rates" in out.stdout and "fx" in out.stdout
 
 
-def test_next_quarter_start():
-    assert next_quarter_start(date(2026, 9, 8)) == date(2026, 7, 1)
-    assert next_quarter_start(date(2026, 10, 1)) == date(2026, 10, 1)
-    assert next_quarter_start(date(2026, 1, 15)) == date(2026, 1, 1)
+def test_quarter_start():
+    assert quarter_start(date(2026, 9, 8)) == date(2026, 7, 1)
+    assert quarter_start(date(2026, 10, 1)) == date(2026, 10, 1)
+    assert quarter_start(date(2026, 1, 15)) == date(2026, 1, 1)

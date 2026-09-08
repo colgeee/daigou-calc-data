@@ -16,6 +16,13 @@ from pipeline.sources import REGISTRY
 URL = "https://gis.data.ca.gov/api/download/v1/items/01883a79765a4afba132ba54da408d8b/csv?layers=1"
 STATE_RATE = Decimal("0.0725")
 UNINC = "UNINCORPORATED"
+# The live extract keys 540 jurisdictions (482 cities plus 58 county unincorporated rows).
+# CDTFA has answered 200 with a well-formed CSV carrying no jurisdiction rows at all -- the
+# one CI failure this pipeline has had -- and a zero-row parse would drop every California
+# ZIP rather than fail, so the parse must refuse a table this far below the live count. A
+# module constant, like Texas's `MIN_DATA_ROWS`, so tests can monkeypatch it down instead
+# of shipping a 540-row fixture.
+MIN_JURISDICTIONS = 400
 
 # Census's normalised place name diverges from CDTFA's `City_name` key for a handful of
 # cities. Keyed by the normalised (suffix-stripped, uppercase) Census name.
@@ -64,7 +71,11 @@ def parse(
     `UNINCORPORATED AREA-<COUNTY>` in either column, so both shapes are matched. Rows whose
     `START_DATE` is after `on` (today, when `on` is None) are ignored — CDTFA pre-publishes
     a future quarter's rate ahead of its effective date. Where a jurisdiction repeats among
-    the remaining rows, the one with the latest `START_DATE` wins."""
+    the remaining rows, the one with the latest `START_DATE` wins.
+
+    Raises ``ValueError`` naming the count if fewer than `MIN_JURISDICTIONS` jurisdictions
+    come out of the parse: CDTFA has served a 200 with a well-formed but empty CSV, and
+    every California ZIP would silently vanish from the build rather than fail it."""
     cutoff = on if on is not None else date.today()
     out: dict[tuple[str, str], tuple[Decimal, str]] = {}
     began: dict[tuple[str, str], date] = {}
@@ -85,6 +96,12 @@ def parse(
             continue
         began[key] = start
         out[key] = (rate, row["City_Name_Proper"].strip())
+    if len(out) < MIN_JURISDICTIONS:
+        raise ValueError(
+            f"CDTFA rate file: only {len(out)} jurisdictions parsed, expected at least "
+            f"{MIN_JURISDICTIONS} of the live 540 -- the download may be an empty or "
+            f"error response, or its columns may have shifted"
+        )
     return out
 
 
@@ -109,11 +126,13 @@ class CaAdapter:
             label = None
             if hit is None:
                 # A CDP or an unmatched name is unincorporated territory of its county.
-                # The county label keeps the Census's own casing (C1), with `display_name`
-                # as the fallback; a matched city keeps CDTFA's `City_Name_Proper`, which
-                # is already cased (bar `Mcfarland`, which `display_name` fixes).
+                # The county label is the Census's own name, casing and entity word
+                # included (C1/F5), with `display_name` as the fallback; a matched city
+                # keeps CDTFA's `City_Name_Proper`, which is already cased (bar
+                # `Mcfarland`, which `display_name` fixes).
                 hit = table.get((county, ""))
-                label = f"{census.county_display(zip5) or display_name(county)} County, CA"
+                name = census.county_label(zip5) or f"{display_name(county)} County"
+                label = f"{name}, CA"
             if hit is None:
                 # San Francisco is a consolidated city-county with no unincorporated row.
                 dropped += 1

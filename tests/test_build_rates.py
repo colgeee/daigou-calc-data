@@ -7,8 +7,12 @@ from decimal import Decimal as D
 import pytest
 
 from pipeline import build_rates
-from pipeline.census import Census
+from pipeline.census import STATE_FIPS, Census
 from pipeline.model import ZipRate
+
+# Captured before the autouse fixture below neutralises the module attribute, so the tests
+# that exercise the gate through `build` can put the real one back.
+REAL_CHECK_PARTITION = build_rates.check_partition
 
 
 class FakeAdapter:
@@ -17,6 +21,21 @@ class FakeAdapter:
 
     def rows(self, census, on):
         return iter(self._rows)
+
+
+@pytest.fixture(autouse=True)
+def _skip_partition(monkeypatch):
+    """F4's partition gate demands all 51 states + DC on every full build; the fakes below
+    claim one or two states apiece and a fake census knows only a couple of ZIPs, so the
+    gate is neutralised here the way `test_tx.py` lowers `MIN_DATA_ROWS`. The tests that
+    exercise the gate call `check_partition` directly, or restore it explicitly."""
+    monkeypatch.setattr(build_rates, "check_partition", lambda adapters: None)
+
+
+def partitioning_adapters():
+    """One adapter per state code, so the union is exactly `STATE_FIPS` with no state
+    claimed twice."""
+    return [FakeAdapter(f"a{st}", (st,), []) for st in STATE_FIPS]
 
 
 def census():
@@ -172,6 +191,59 @@ def test_main_prints_the_five_sections(tmp_path, monkeypatch, capsys):
     assert "[build] total: 1 ZIPs across 1 state codes" in out
     assert "[build] state-rate-only: 0 of 1 states with rows are localCoverage false" in out
     assert "[build] validation: []" in out
+
+
+def test_check_partition_passes_on_an_exact_partition():
+    assert REAL_CHECK_PARTITION(partitioning_adapters()) is None
+
+
+def test_check_partition_raises_when_a_state_is_unclaimed():
+    """F4: an adapter dropped from the registry, or one whose `states` tuple loses an
+    entry, takes its states out of the build without tripping the coverage gate -- which
+    only measures the states an adapter actually claims."""
+    short = [a for a in partitioning_adapters() if a.states != ("WY",)]
+    with pytest.raises(ValueError, match="no adapter claims WY"):
+        REAL_CHECK_PARTITION(short)
+
+
+def test_check_partition_raises_when_a_state_is_claimed_twice():
+    """The other half of the invariant: two adapters racing for the same ZIPs, resolved
+    only by whichever composes the higher rate."""
+    doubled = [*partitioning_adapters(), FakeAdapter("greedy", ("NV", "UT"), [])]
+    with pytest.raises(ValueError, match=r"NV \(aNV\+greedy\), UT \(aUT\+greedy\)"):
+        REAL_CHECK_PARTITION(doubled)
+
+
+def test_check_partition_names_a_code_that_is_not_a_state():
+    extra = [*partitioning_adapters(), FakeAdapter("pr", ("PR",), [])]
+    with pytest.raises(ValueError, match="not a state code: PR"):
+        REAL_CHECK_PARTITION(extra)
+
+
+def test_the_registered_adapters_partition_every_state():
+    """The gate's real subject: the shipped registry. sst (24) + ca + tx + il + ny + fl +
+    yaml (22) must come to exactly the 50 states + DC, each claimed once."""
+    adapters = build_rates._adapters()
+    assert sum(len(a.states) for a in adapters) == len(STATE_FIPS) == 51
+    assert REAL_CHECK_PARTITION(adapters) is None
+
+
+def test_a_full_build_runs_the_partition_gate(monkeypatch):
+    monkeypatch.setattr(build_rates, "check_partition", REAL_CHECK_PARTITION)
+    a = FakeAdapter("a", ("CA",),
+                    [ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Los Angeles, CA")])
+    with pytest.raises(ValueError, match="must partition all 51 states"):
+        build_rates.build(census(), date(2026, 9, 8), adapters=[a])
+
+
+def test_a_filtered_build_skips_the_partition_gate(monkeypatch):
+    """`--states CA` is deliberately partial, so the partition is an invariant of the full
+    quarterly build alone."""
+    monkeypatch.setattr(build_rates, "check_partition", REAL_CHECK_PARTITION)
+    a = FakeAdapter("a", ("CA",),
+                    [ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Los Angeles, CA")])
+    doc = build_rates.build(census(), date(2026, 9, 8), states=["CA"], adapters=[a])
+    assert [z[0] for z in doc["zips"]] == ["90012"]
 
 
 def test_summary_counts_the_state_rate_only_states(capsys):

@@ -46,6 +46,11 @@ _COUNTY_SUFFIX = re.compile(r"\s+(County|Parish|Borough|Census Area|Municipio|Mu
 # word as a two-word phrase `_COUNTY_SUFFIX` cannot anchor a single trailing word on.
 _BALANCE_SUFFIX = re.compile(r"\s+\(balance\)$")
 _CITY_AND_BOROUGH_SUFFIX = re.compile(r"\s+City and Borough$")
+# An independent city is a county equivalent whose NAMELSAD ends in the lowercase ` city`
+# LSAD word (`Williamsburg city`, `Baltimore city`, `St. Louis city`). Matched
+# case-sensitively for the same reason every other strip here is: `Carson City`, NV's own
+# county-equivalent name, carries a capitalised `City` that is part of the name.
+_INDEPENDENT_CITY_SUFFIX = re.compile(r"\s+city$")
 
 
 def parse_gazetteer(text: str) -> dict[str, tuple[float, float]]:
@@ -150,7 +155,9 @@ class Census:
     uppercase name the rate-file joins key on; `county_display`/`place_display` keep the
     casing, which is what every adapter's label uses (C1), and additionally drop the
     Census entity phrasing a join key must keep untouched -- a trailing ``(balance)``,
-    ``unified government``, ``City and Borough`` and the like (F1/F2). Re-casing an
+    ``unified government``, ``City and Borough`` and the like (F1/F2). `county_label` is
+    the county form a **label** wants instead: the NAMELSAD verbatim, entity word and all
+    (``Acadia Parish``, ``Aleutians East Borough``), bar an independent city. Re-casing an
     uppercased name with `display_name` is the fallback for a ZIP the relationship files
     do not name."""
 
@@ -196,8 +203,31 @@ class Census:
         if c is None:
             return None
         n = _CITY_AND_BOROUGH_SUFFIX.sub("", c[1].strip())
-        n = re.sub(r"\s+city$", "", n)
+        n = _INDEPENDENT_CITY_SUFFIX.sub("", n)
         return re.sub(r"\s+", " ", _COUNTY_SUFFIX.sub("", n))
+
+    def county_label(self, zcta: str) -> str | None:
+        """The county's name as a **label** reads it: the Census `NAMELSAD` verbatim, the
+        entity word included, so a county fallback label says what kind of thing the
+        jurisdiction actually is -- ``DuPage County``, ``Acadia Parish``, ``Aleutians East
+        Borough``, ``Yukon-Koyukuk Census Area``, ``Skagway Municipality``, ``Juneau City
+        and Borough``. This is what every adapter appends its state code to, in place of
+        the old `county_display` + a hard-coded ``" County"``, which mislabelled Louisiana's
+        parishes and Alaska's boroughs and left Virginia's counties with no entity word at
+        all (``Accomack, VA``).
+
+        The one name that is not verbatim is an independent city, a county equivalent whose
+        LSAD word is the lowercase ` city`: ``Williamsburg city`` -> ``Williamsburg``,
+        because ``Williamsburg city, VA`` reads as a typo rather than as a jurisdiction
+        type. The strip is case-sensitive, so ``Carson City`` -- a capitalised ``City`` that
+        is part of the name, not an LSAD word -- is returned unchanged.
+
+        `county_display` (the suffix-stripped short form) and `county_short`/`county_name`
+        (the uppercase join key) are unchanged and still mean what they meant."""
+        c = self.county.get(zcta)
+        if c is None:
+            return None
+        return re.sub(r"\s+", " ", _INDEPENDENT_CITY_SUFFIX.sub("", c[1].strip()))
 
     def county_fips3(self, zcta: str) -> str | None:
         c = self.county.get(zcta)

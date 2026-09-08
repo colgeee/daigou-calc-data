@@ -1,5 +1,5 @@
 requests==2.32.*
 PyYAML==6.0.*
-pypdf==6.*
+pypdf==6.18.*
 pytest==8.*
 ruff==0.13.*

@@ -77,10 +77,10 @@ same phone would see "couldn't get a location" instead.
 
 Remaining flat/regional states (DE, MT, NH, OR, PA, MA, CT, MD, ME, MS, ID, HI, DC, VA) and
 the eight state-rate-only ones (CO, LA, AL, AK, SC, MO, AZ, NM) are hand-maintained in
-`rules/states/<st>.yaml` with a `source` field per state.
+`pipeline/rules/states/<st>.yaml` with a `source` field per state.
 
 ## Licence
 
 The published tax-rate and exchange-rate facts are public government/public data and are
 not subject to copyright. The pipeline code in this repository is licensed under the MIT
-License.
+License; see [LICENSE](LICENSE).

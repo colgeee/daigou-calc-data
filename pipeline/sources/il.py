@@ -188,7 +188,10 @@ class IlAdapter:
                     no_row += 1
                     continue
                 fell_back += 1
-                label = f"{census.county_display(zip5) or display_name(county)} County, IL"
+                # The county label is the Census's own name, casing and entity word
+                # included (C1/F5); `display_name` supplies both only as the fallback.
+                name = census.county_label(zip5) or f"{display_name(county)} County"
+                label = f"{name}, IL"
             # A record carries the current period and the one before it; `on` decides
             # which applies, so a build dated back before a rate change publishes the
             # rate that was actually in force then.

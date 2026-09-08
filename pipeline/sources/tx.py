@@ -140,7 +140,10 @@ class TxAdapter:
                 else:
                     no_county_row += 1
                 raw = county_local.get(county, Decimal("0"))
-                label = f"{census.county_display(zip5) or display_name(county)} County, TX"
+                # The county label is the Census's own name, casing and entity word
+                # included (C1/F5); `display_name` supplies both only as the fallback.
+                name = census.county_label(zip5) or f"{display_name(county)} County"
+                label = f"{name}, TX"
             local = _capped(raw)
             if local != raw:
                 capped += 1
