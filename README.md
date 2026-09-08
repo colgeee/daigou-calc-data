@@ -5,6 +5,18 @@ official state and federal sources, plus a daily USD exchange-rate snapshot, and
 them as two static JSON files (`rates.json.gz`, `fx.json`) via GitHub Pages. Rates are
 rebuilt quarterly (rates are effective from calendar-quarter starts); FX is refreshed daily.
 
+## Published files
+
+| File | URL | Rebuilt |
+| --- | --- | --- |
+| Rates | <https://colgeee.github.io/daigou-calc-data/v1/rates.json.gz> | quarterly — 2 Jan / 2 Apr / 2 Jul / 2 Oct, 06:00 UTC (`.github/workflows/rates.yml`) |
+| FX | <https://colgeee.github.io/daigou-calc-data/v1/fx.json> | daily — 17:05 UTC, after the ECB's 16:00 CET publication (`.github/workflows/fx.yml`) |
+
+Both files are served from the `gh-pages` branch, which `scripts/publish.sh` rewrites after a
+successful build. GitHub Pages returns an `ETag` on each; the app sends it back as
+`If-None-Match`, so an unchanged file costs a 304 and no download. An uncompressed
+`v1/rates.json` sits beside the gzip for debugging.
+
 ## Run locally
 
 ```bash
@@ -14,6 +26,32 @@ pip install -r requirements.txt
 python -m pipeline fx
 python -m pipeline rates --states WA
 ```
+
+## Coverage
+
+Phase 1 covers 42 states + DC — 29 404 ZIPs in the current build, and the validator refuses
+to publish a full build under 25 000. SC, MO, AZ and NM are Phase 2. CO, LA, AL and AK are
+unsupported: their home-rule local taxes are not published per ZIP, so the app asks the user
+for a rate there.
+
+## Known limitations
+
+- The Streamlined boundary files are ZIP-level, so sub-ZIP local taxes are missed: Vermont's
+  1 % local option, West Virginia's 1 % municipal taxes and most Kansas districts are not
+  captured.
+- Texas ZIPs that match no city take their county's highest filed combined local rate.
+- Illinois jurisdictions whose "rate varies" flag is set (Metro-East business districts and
+  home-rule slivers) are published at their low rate, the one every other address in the
+  jurisdiction pays; municipalities IDOR taxes by address are dropped, so those ZIPs fall
+  back to their county rate.
+- California and Texas ZIPs that match no incorporated place fall back to the county's
+  unincorporated rate.
+- New York cities without their own Pub 718 row take the county rate.
+- Florida's $5 000 cap on the single-item discretionary surtax is not modelled.
+- Streamlined food and drug rates are published only where a state actually has a reduced
+  rate for them.
+- TWD is Taiwan's central bank interbank closing rate (mid-market); every other currency is
+  an ECB reference rate. Neither is a retail rate a card issuer would apply.
 
 ## Sources
 
@@ -29,7 +67,8 @@ python -m pipeline rates --states WA
 - Florida: <https://floridarevenue.com/Forms_library/current/dr15dss.pdf>
 - Virginia: <https://www.tax.virginia.gov/retail-sales-and-use-tax>
 - FX (ECB via Frankfurter): <https://api.frankfurter.dev/v1/latest?base=USD>
-- FX (TWD via ExchangeRate-API): <https://open.er-api.com/v6/latest/USD>
+- FX (TWD, central bank interbank closing rate): <https://www.cbc.gov.tw/tw/lp-645-1.html>
+- FX (TWD fallback, ExchangeRate-API): <https://open.er-api.com/v6/latest/USD>
 
 Remaining flat/regional states (DE, MT, NH, OR, PA, MA, CT, MD, ME, MS, ID, HI, DC) are
 hand-maintained in `rules/states/<st>.yaml` with a `source` field per state.
