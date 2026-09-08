@@ -1,7 +1,7 @@
 {
  "schemaVersion": "1",
  "effectiveDate": "2026-07-01",
- "publishedAt": "2026-09-08T12:12:27Z",
+ "publishedAt": "2026-09-08T12:36:52Z",
  "profiles": {
   "MA-0.0625-0-AGAWAM TOWN, MA": {
    "state": "MA",
@@ -57214,9 +57214,9 @@
    "localRate": "0",
    "foodDrugRate": null
   },
-  "AK-0-0-SKAGWAY MUNICIPALITY, AK": {
+  "AK-0-0-SKAGWAY, AK": {
    "state": "AK",
-   "label": "Skagway Municipality, AK",
+   "label": "Skagway, AK",
    "stateRate": "0",
    "localRate": "0",
    "foodDrugRate": null
@@ -259654,7 +259654,7 @@
    "99840",
    59560379,
    -135338279,
-   "AK-0-0-SKAGWAY MUNICIPALITY, AK"
+   "AK-0-0-SKAGWAY, AK"
   ],
   [
    "99841",
