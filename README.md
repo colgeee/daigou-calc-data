@@ -11,17 +11,17 @@ calendar-quarter starts.
 | --- | --- | --- |
 | Rates | <https://colgeee.github.io/daigou-calc-data/v1/rates.json.gz> | quarterly — 2 Jan / 2 Apr / 2 Jul / 2 Oct, 06:00 UTC (`.github/workflows/rates.yml`) |
 
+The file is served from the `gh-pages` branch, which `scripts/publish.sh` rewrites after a
+successful build. GitHub Pages returns an `ETag`; the app sends it back as
+`If-None-Match`, so an unchanged file costs a 304 and no download. An uncompressed
+`v1/rates.json` sits beside the gzip for debugging.
+
 ## Exchange rates
 
 Exchange rates are no longer published here — the app fetches them itself from
 <https://api.exchangerate.fun/> (refreshed hourly, no API key) and lets the user override
 the rate for the selected currency. The daily FX workflow that used to build `v1/fx.json`
 is gone.
-
-The file is served from the `gh-pages` branch, which `scripts/publish.sh` rewrites after a
-successful build. GitHub Pages returns an `ETag`; the app sends it back as
-`If-None-Match`, so an unchanged file costs a 304 and no download. An uncompressed
-`v1/rates.json` sits beside the gzip for debugging.
 
 ## Run locally
 
