@@ -53,6 +53,27 @@ def county_short(name: str) -> str:
     return re.sub(r"\s+", " ", _COUNTY_SUFFIX.sub("", n)).upper()
 
 
+def display_name(name: str) -> str:
+    """Title-case a place/county label for display, then fix what `.title()` mangles:
+    a leading ``Mc`` wants its next letter capitalised (``Mcintosh`` -> ``McIntosh``,
+    ``Mckinney`` -> ``McKinney``, and after a hyphen too: ``Candler-Mcafee`` ->
+    ``Candler-McAfee``), and the ``Afb`` token is an acronym (``Mcconnell Afb`` ->
+    ``McConnell AFB``). ``Mac...`` words (``Macon``), apostrophes (``O'Fallon``) and
+    multi-word names (``Pend Oreille``, ``De Kalb``) are already correct after
+    `.title()` and are left alone."""
+
+    def fix(token: str) -> str:
+        if token.upper() == "AFB":
+            return "AFB"
+        if len(token) > 2 and token[:2] == "Mc":
+            return "Mc" + token[2].upper() + token[3:]
+        return token
+
+    return " ".join(
+        "-".join(fix(part) for part in word.split("-")) for word in name.title().split(" ")
+    )
+
+
 @dataclass
 class Census:
     centroids: dict[str, tuple[float, float]]

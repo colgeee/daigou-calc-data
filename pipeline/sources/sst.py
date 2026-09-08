@@ -10,7 +10,7 @@ from datetime import date
 from decimal import Decimal
 from urllib.parse import urljoin
 
-from pipeline.census import Census
+from pipeline.census import Census, display_name
 from pipeline.http import get_cached
 from pipeline.model import ZipRate
 from pipeline.sources import REGISTRY
@@ -81,7 +81,11 @@ def unpack(data: bytes, name: str) -> str:
     """Decode a rate/boundary payload; several states ship a UTF-8 BOM on the first row."""
     if name.lower().endswith(".zip"):
         z = zipfile.ZipFile(io.BytesIO(data))
-        data = z.read(z.namelist()[0])
+        members = z.namelist()
+        csv_name = next((n for n in members if n.lower().endswith(".csv")), None)
+        if csv_name is None:
+            raise ValueError(f"{name}: no .csv member in archive {members}")
+        data = z.read(csv_name)
     return data.decode("utf-8-sig", "replace")
 
 
@@ -139,7 +143,10 @@ def compose(
     if st is None:
         raise ValueError(f"{state}: no current state-level (45) rate row")
     best: dict[str, ZipRate] = {}
-    in_state: list[str] | None = None
+    # A Z row's range is only a hint: it can span a county line into a neighbour state
+    # (or reach ZIPs that were retired), so the census's own state membership gates
+    # every candidate ZIP, on both the wide and the narrow enumeration below.
+    in_state = set(census.zips_in_state(STATES[state]))
     for z in zips:
         if not (z.begin <= on <= z.end):
             continue
@@ -159,16 +166,14 @@ def compose(
         if int(hi) - int(lo) > 100:
             # IN/KY/MI/NJ/RI cover the whole state with one wide Z row; enumerating it
             # would walk thousands of numbers that are not ZIPs, so ask the census.
-            if in_state is None:
-                in_state = census.zips_in_state(STATES[state])
-            candidates: Iterable[str] = [z5 for z5 in in_state if lo <= z5 <= hi]
+            candidates: Iterable[str] = (z5 for z5 in in_state if lo <= z5 <= hi)
         else:
             candidates = _zip_range(lo, hi)
         for zip5 in candidates:
-            if zip5 not in census.centroids:
+            if zip5 not in in_state or zip5 not in census.centroids:
                 continue
             name = census.place_name(zip5) or census.county_name(zip5) or state
-            label = f"{name.title()}, {state}"
+            label = f"{display_name(name)}, {state}"
             # The food/drug columns repeat the general rate where a state has no reduced
             # grocery rate; that is not a food rate, so only a genuinely lower one is kept.
             cand = ZipRate(
@@ -181,10 +186,9 @@ def compose(
 
 
 def _zip_range(lo: str, hi: str) -> Iterable[str]:
-    a, b = int(lo), int(hi or lo)
-    if b - a > 100:
-        b = a
-    for n in range(a, b + 1):
+    """Enumerate a narrow, already zero-padded range; `compose` resolves `hi` and the
+    wide-range split before calling this, so there is nothing left to clamp here."""
+    for n in range(int(lo), int(hi) + 1):
         yield f"{n:05d}"
 
 

@@ -3,6 +3,7 @@ from pathlib import Path
 from pipeline.census import (
     Census,
     county_short,
+    display_name,
     normalize_place,
     parse_gazetteer,
     parse_relationship,
@@ -39,6 +40,23 @@ def test_normalizers():
     assert county_short("Orleans Parish") == "ORLEANS"
     assert county_short("Fairfax city") == "FAIRFAX CITY"
     assert county_short("Fairfax County") == "FAIRFAX"
+
+
+def test_display_name_fixes_mc_prefixes_and_afb_but_leaves_the_rest_to_title_case():
+    # Live labels that .title() alone mangles.
+    assert display_name("MCINTOSH") == "McIntosh"
+    assert display_name("MCPHERSON") == "McPherson"
+    assert display_name("MCCONNELL AFB") == "McConnell AFB"
+    assert display_name("MCKINNEY") == "McKinney"
+    # The Mc fix also applies after a hyphen, inside a compound word.
+    assert display_name("CANDLER-MCAFEE") == "Candler-McAfee"
+    # Mac... is not Mc...; multi-word, apostrophe and hyphenated names are already
+    # correct once .title() runs and must not be touched further.
+    assert display_name("MACON") == "Macon"
+    assert display_name("O'FALLON") == "O'Fallon"
+    assert display_name("WILKES-BARRE") == "Wilkes-Barre"
+    assert display_name("PEND OREILLE") == "Pend Oreille"
+    assert display_name("DE KALB") == "De Kalb"
 
 
 def test_census_object_from_fixture_slices():

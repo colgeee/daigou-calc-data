@@ -115,6 +115,18 @@ def test_compose_drops_the_food_rate_when_it_equals_the_general_rate():
     assert out["98001"].food_drug_rate == D("0.065")  # still a genuinely reduced rate
 
 
+def test_compose_drops_zips_whose_census_county_is_in_another_state():
+    # A narrow Z row can still cross a county/state line even though it is short; the
+    # census's own state membership must gate every candidate, not just the wide path.
+    c = census()
+    c.centroids["83857"] = (48.2, -117.0)
+    c.county["83857"] = ("16021", "Bonner County")  # Idaho, not WA
+    rates = sst.parse_rate_file((FX / "sst_wa_rate.csv").read_text())
+    zs = [sst.ZipRow("83856", "83857", "", "", (), date(2024, 4, 1), sst.OPEN_END)]
+    out = {r.zip for r in sst.compose("WA", rates, zs, c, ON)}
+    assert out == {"83856"}
+
+
 def test_compose_skips_zips_without_a_current_row_or_centroid():
     rates = sst.parse_rate_file((FX / "sst_wa_rate.csv").read_text())
     zs = sst.parse_boundary_zips((FX / "sst_wa_boundary.csv").read_text())
@@ -136,3 +148,69 @@ def test_unpack_handles_zip_and_plain_csv():
     assert sst.unpack(row.encode(), "x.csv").startswith("53,45")
     # IA ships its state-level row first, behind a UTF-8 BOM
     assert sst.unpack(b"\xef\xbb\xbf" + row.encode(), "x.csv").startswith("53,45")
+
+
+def test_unpack_picks_the_first_csv_member_and_rejects_an_archive_without_one():
+    import io
+    import zipfile
+
+    row = "53,45,53,0.065,0.065,0.065,0.065,19830301,99991231\n"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("WAR2026Q4AUG27/", "")  # directory entry, not a file
+        z.writestr("WAR2026Q4AUG27/readme.txt", "not the data")
+        z.writestr("WAR2026Q4AUG27/WAR2026Q4AUG27.CSV", row)
+    assert sst.unpack(buf.getvalue(), "x.zip").startswith("53,45")
+
+    no_csv = io.BytesIO()
+    with zipfile.ZipFile(no_csv, "w") as z:
+        z.writestr("readme.txt", "nothing here")
+    try:
+        sst.unpack(no_csv.getvalue(), "x.zip")
+        raise AssertionError("expected ValueError")
+    except ValueError as e:
+        assert "readme.txt" in str(e)
+
+
+def test_sst_adapter_rows_requests_flat_urls_and_yields_wa_rows(monkeypatch):
+    import io
+    import zipfile
+
+    index_html = (
+        b"<html><body><pre>\n"
+        b'<A HREF="/ratesandboundry/Rates/WAR2026Q4AUG27.csv">WAR2026Q4AUG27.csv</A>\n'
+        b'<A HREF="/ratesandboundry/Boundary/WAB2026Q4AUG27.zip">WAB2026Q4AUG27.zip</A>\n'
+        b"</pre></body></html>\n"
+    )
+
+    rate_bytes = (FX / "sst_wa_rate.csv").read_bytes()
+    boundary_text = (FX / "sst_wa_boundary.csv").read_text()
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, "w") as z:
+        z.writestr("WAB2026Q4AUG27.csv", boundary_text)
+    boundary_zip_bytes = zbuf.getvalue()
+
+    rate_url = "http://52.15.48.162/ratesandboundry/Rates/WAR2026Q4AUG27.csv"
+    boundary_url = "http://52.15.48.162/ratesandboundry/Boundary/WAB2026Q4AUG27.zip"
+    requested: list[str] = []
+
+    def fake_get_cached(url, *, ttl_days: float = 1.0) -> bytes:
+        requested.append(url)
+        if url in (f"{sst.MIRROR}/Rates/", f"{sst.MIRROR}/Boundary/"):
+            return index_html
+        if url == rate_url:
+            return rate_bytes
+        if url == boundary_url:
+            return boundary_zip_bytes
+        raise AssertionError(f"unexpected url: {url}")
+
+    monkeypatch.setattr(sst, "get_cached", fake_get_cached)
+    adapter = sst.SstAdapter()
+    monkeypatch.setattr(adapter, "states", ("WA",))
+
+    rows = list(adapter.rows(census(), ON))
+
+    # No doubled /ratesandboundry/ratesandboundry/... path.
+    assert rate_url in requested
+    assert boundary_url in requested
+    assert rows and all(r.state == "WA" for r in rows)
