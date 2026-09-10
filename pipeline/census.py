@@ -13,8 +13,9 @@ GAZ_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2024_Gazett
 COUNTY_URL = "https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_county20_natl.txt"
 PLACE_URL = "https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_place20_natl.txt"
 
-# Every state + DC keyed to its 2-digit FIPS, the prefix `zips_in_state` matches on. The
-# builder sizes each state's ZIP universe with it for the per-state coverage gate.
+# Every state code the pipeline publishes -- the 50 states, DC and Guam -- keyed to its
+# 2-digit FIPS, the prefix `zips_in_state` matches on. The builder sizes each state's ZIP
+# universe with it for the per-state coverage gate.
 STATE_FIPS: dict[str, str] = {
     "AL": "01", "AK": "02", "AZ": "04", "AR": "05", "CA": "06", "CO": "08", "CT": "09",
     "DE": "10", "DC": "11", "FL": "12", "GA": "13", "HI": "15", "ID": "16", "IL": "17",

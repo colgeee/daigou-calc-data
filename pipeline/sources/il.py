@@ -15,7 +15,7 @@ from decimal import Decimal
 from pipeline.census import Census, display_name, join_key
 from pipeline.http import get_cached
 from pipeline.model import ZipRate
-from pipeline.sources import REGISTRY, JurisdictionKey, geoid_index
+from pipeline.sources import REGISTRY, JurisdictionKey, geoid_index, wanted_places
 
 URL = (
     "https://tax.illinois.gov/content/dam/soi/en/web/tax/research/taxrates/documents/"
@@ -163,7 +163,18 @@ class IlAdapter:
     def jurisdictions(self, census: Census, on: date) -> dict[JurisdictionKey, ZipRate]:
         """The same table `rows` prices ZIPs from, keyed by geography instead. Every record
         carries the jurisdiction's own food/drug rate, so a Chicago grocery quote off a
-        polygon is the 1% Illinois publishes rather than the general rate."""
+        polygon is the 1% Illinois publishes rather than the general rate.
+
+        Every place is crossed with **every** county of the state, not only the counties
+        `geoid_index` happened to observe for it. The index is reversed out of the ZCTA
+        relationship files, so it names a place in a county only where some ZCTA in that
+        county picked that place as its dominant one -- which is not where the municipality
+        reaches, it is where a ZIP's centre of mass fell. Keying off those pairs alone left
+        a straddler priced on one side only: Chicago in Cook but not in its DuPage sliver,
+        Bartlett in one of Cook/DuPage/Kane, and 40 rows IDOR actually files unreachable.
+        A pairing IDOR files no row for stays absent, and a pairing whose place does not
+        physically reach that county is inert -- the overlay emits no piece to look it up
+        with, and the county's remainder answers instead (spec §2.3)."""
         table = {(join_key(r.name), join_key(r.county)): r for r in parse(_fetch_text())}
         counties, places = geoid_index(census, "17")
         out: dict[JurisdictionKey, ZipRate] = {}
@@ -174,13 +185,14 @@ class IlAdapter:
             gm, dm, _covered = row.rates(on)
             out[county_geoid] = ZipRate("", "IL", STATE_RATE, _local(row, gm), dm,
                                         f"{county_label}, IL")
-        for (place_key, county_key), (place_geoid, county_geoid, name) in places.items():
-            row = table.get((place_key, county_key))
-            if row is None:
-                continue          # unincorporated, or a jurisdiction IDOR taxes by address
-            gm, dm, _covered = row.rates(on)
-            out[(place_geoid, county_geoid)] = ZipRate("", "IL", STATE_RATE, _local(row, gm),
-                                                       dm, f"{name}, IL")
+        for place_geoid, (place_key, name) in wanted_places(places).items():
+            for county_key, (county_geoid, _label) in counties.items():
+                row = table.get((place_key, county_key))
+                if row is None:
+                    continue      # unincorporated, taxed by address, or not in this county
+                gm, dm, _covered = row.rates(on)
+                out[(place_geoid, county_geoid)] = ZipRate(
+                    "", "IL", STATE_RATE, _local(row, gm), dm, f"{name}, IL")
         return out
 
     def rows(self, census: Census, on: date) -> Iterable[ZipRate]:

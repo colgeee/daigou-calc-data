@@ -81,8 +81,16 @@ def merge_to_topojson(srcs: list[Path], dst: Path, precision: str = "0.00001") -
 
     mapshaper prints `Ignoring precision=0.00001 -- this option only works with
     no-quantization` here and then honours it anyway: the written `transform.scale` is
-    exactly `[1e-05, 1e-05]` (verified against 0.6.121 on 2026-09-09), while dropping the
-    option falls back to mapshaper's own default grid, which is thousands of times coarser.
-    Do not "fix" the warning away."""
+    *approximately* the requested precision, while dropping the option falls back to
+    mapshaper's own default grid, which is thousands of times coarser. Do not "fix" the
+    warning away.
+
+    Approximately, not exactly: mapshaper snaps the quantisation grid to the dataset's own
+    extent, so what it writes is the requested step rounded to a whole number of grid cells
+    across that extent. The two-triangle fixture happens to land on exactly
+    `[1e-05, 1e-05]`; the real merged build writes
+    `[9.999999783645851e-06, 9.999998584150907e-06]` (0.6.121, verified 2026-09-10). Any
+    test of this belongs within a tolerance -- an exact-equality assertion would pass on the
+    fixture and fail on the shipped file."""
     run(["-i", *[str(s) for s in srcs], "combine-files", "-merge-layers", "force",
          "-o", str(dst), "format=topojson", f"precision={precision}"])

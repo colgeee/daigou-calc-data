@@ -62,3 +62,18 @@ def geoid_index(census: Census, fips: str) -> tuple[
             places.setdefault((join_key(normalize_place(p[1])), county_key),
                               (p[0], county_geoid, census.place_display(zcta) or p[1]))
     return counties, places
+
+
+def wanted_places(places: dict[tuple[str, str], tuple[str, str, str]]
+                  ) -> dict[str, tuple[str, str]]:
+    """Collapse `geoid_index`'s places to `place GEOID7 -> (join key, label name)`.
+
+    The county in a `geoid_index` key is the county of the ZCTA that named the place, not
+    the set of counties the municipality reaches, so it must not be read as the latter: a
+    place that straddles a line is filed by the state in every county it reaches, and only
+    the state's own table knows which those are. Dropping the county here lets a caller
+    cross each place with every county of the state and let the rate table decide."""
+    out: dict[str, tuple[str, str]] = {}
+    for (place_key, _county_key), (place_geoid, _county_geoid, name) in places.items():
+        out.setdefault(place_geoid, (place_key, name))
+    return out

@@ -1,4 +1,6 @@
+import io
 import json
+import zipfile
 from datetime import date
 from decimal import Decimal as D
 from pathlib import Path
@@ -6,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from pipeline.bounds import wa
+from pipeline.census import Census
 
 FX = Path(__file__).parent / "fixtures"
 
@@ -60,16 +63,68 @@ def test_the_rate_file_must_be_the_build_quarter_exactly():
                         what="rates", exact=True)
 
 
+ON = date(2026, 9, 9)
+HEADER = "Name,Code,State,Local,RTA,Rate,Effective Date,Expiration Date\n"
+
+
+def rates_csv(*rows: str) -> str:
+    return HEADER + "".join(r + "\n" for r in rows)
+
+
 def test_parse_rates_splits_state_and_local_and_pads_the_code():
-    rates = wa.parse_rates((FX / "wa_rates_slice.csv").read_text(encoding="utf-8"))
+    rates = wa.parse_rates((FX / "wa_rates_slice.csv").read_text(encoding="utf-8"), ON)
     assert rates["1726"] == (D("0.065"), D("0.0405"), "SEATTLE")
     assert rates["4000"][1] == D("0.024")
 
 
+def test_parse_rates_refuses_a_location_code_that_repeats():
+    """One code names one rate area. A file that ever carried a second row for a code would
+    otherwise collapse to whichever the reader saw last, at full row count, with no drops
+    and every floor green -- and `diff-rates` cannot see it, because Washington's ZIP rows
+    come from SST, not from this download."""
+    text = rates_csv("SEATTLE,1726,0.065,0.0405,0,0.1055,20260701,20260930",
+                     "SEATTLE ANNEX,1726,0.065,0.05,0,0.115,20260701,20260930")
+    with pytest.raises(ValueError, match=r"location code 1726 has two rows in force"):
+        wa.parse_rates(text, ON)
+
+
+def test_parse_rates_ignores_a_row_not_in_force_on_the_build_date():
+    """The DOR's own `Effective Date`/`Expiration Date` decide, so a file carrying more than
+    one quarter's rows publishes the quarter the build is stamped for, not the last row."""
+    text = rates_csv("SEATTLE,1726,0.065,0.0355,0,0.1005,20260401,20260630",
+                     "SEATTLE,1726,0.065,0.0405,0,0.1055,20260701,20260930",
+                     "SEATTLE,1726,0.065,0.0505,0,0.1155,20261001,20261231")
+    assert wa.parse_rates(text, ON)["1726"] == (D("0.065"), D("0.0405"), "SEATTLE")
+
+
+def test_a_code_with_no_row_in_force_is_absent_so_the_drop_gate_counts_it():
+    """Not an error on its own: an area whose rows all expired is one unpriced polygon, and
+    the existing drop gate is what decides whether that is a lag or a broken join."""
+    text = rates_csv("SEATTLE,1726,0.065,0.0405,0,0.1055,20260701,20260930",
+                     "KING COUNTY NON-RTA,4000,0.065,0.024,0,0.089,20250101,20250331")
+    assert set(wa.parse_rates(text, ON)) == {"1726"}
+
+
+def test_parse_rates_refuses_a_date_column_that_is_not_a_date():
+    with pytest.raises(ValueError, match=r"code 1726 has an effective date 'Q3'"):
+        wa.parse_rates(rates_csv("SEATTLE,1726,0.065,0.0405,0,0.1055,Q3,20260930"), ON)
+
+
+def test_the_rates_csv_is_decoded_strictly_so_a_changed_encoding_fails_loudly():
+    """`errors="replace"` would publish a rate area whose name carries a replacement
+    character instead of failing; a mangled label is a wrong published name."""
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as z:
+        z.writestr("rates.csv", HEADER.encode() + b"CA\xf1ON,1726,0.065,0.0405,0,0.1055,"
+                                                 b"20260701,20260930\n")
+    with pytest.raises(UnicodeDecodeError):
+        wa._rates_text(payload.getvalue())
+
+
 def test_to_features_joins_on_the_code_labels_in_the_dor_namespace_and_counts_drops():
-    rates = wa.parse_rates((FX / "wa_rates_slice.csv").read_text(encoding="utf-8"))
+    rates = wa.parse_rates((FX / "wa_rates_slice.csv").read_text(encoding="utf-8"), ON)
     doc = json.loads((FX / "wa_loccode_slice.geojson").read_text(encoding="utf-8"))
-    feats, profiles = wa.to_features(doc, rates, "26Q3")
+    feats, profiles = wa.to_features(doc, rates, "26Q3", {})
     assert [f["properties"]["id"] for f in feats] == ["wa-dor:1726", "wa-dor:4000"]
     assert all(f["properties"]["source"] == "wa-dor" for f in feats)
     labels = {p["label"] for p in profiles.values()}
@@ -79,17 +134,45 @@ def test_to_features_joins_on_the_code_labels_in_the_dor_namespace_and_counts_dr
     assert profiles["WA-0.065-0.0405-SEATTLE, WA"]["localRate"] == "0.0405"
 
 
+def test_a_dor_name_that_is_a_census_place_keeps_the_census_casing():
+    """`display_name` title-cases the DOR's uppercase `Name`, which writes `Seatac` where
+    the Census (and so the rates file's ZIP row for the same jurisdiction) writes `SeaTac`.
+    The profile id uppercases the label, so the two files shared the id and disagreed on the
+    body under it. The DOR's own namespace (`KING COUNTY NON-RTA`) is left alone."""
+    census = Census(
+        centroids={"98188": (47.44, -122.28)},
+        county={"98188": ("53033", "King County")},
+        place={"98188": ("5362288", "SeaTac city")},
+    )
+    casing = wa.census_casing(census)
+    assert casing["SEATAC"] == "SeaTac"
+    rates = {"1726": (D("0.065"), D("0.0405"), "SEATAC"),
+             "4000": (D("0.065"), D("0.024"), "KING COUNTY NON-RTA")}
+    doc = json.loads((FX / "wa_loccode_slice.geojson").read_text(encoding="utf-8"))
+    _feats, profiles = wa.to_features(doc, rates, "26Q3", casing)
+    assert {p["label"] for p in profiles.values()} == {"SeaTac, WA", "King County Non-RTA, WA"}
+
+
+def test_census_casing_is_washingtons_places_only():
+    census = Census(
+        centroids={"98188": (47.44, -122.28), "97201": (45.5, -122.68)},
+        county={"98188": ("53033", "King County"), "97201": ("41051", "Multnomah County")},
+        place={"98188": ("5362288", "SeaTac city"), "97201": ("4159000", "Portland city")},
+    )
+    assert set(wa.census_casing(census)) == {"SEATAC"}
+
+
 def test_to_features_fails_when_too_many_polygons_have_no_rate_row():
     rates = {"1726": (D("0.065"), D("0.0405"), "SEATTLE")}
     doc = json.loads((FX / "wa_loccode_slice.geojson").read_text(encoding="utf-8"))
     with pytest.raises(ValueError, match=r"2 of 3 polygons \(66.7%\)"):
-        wa.to_features(doc, rates, "26Q3")
+        wa.to_features(doc, rates, "26Q3", {})
 
 
 def test_to_features_fails_below_the_polygon_floor(monkeypatch):
     monkeypatch.setattr(wa, "MIN_POLYGONS", 380)
     monkeypatch.setattr(wa, "MAX_DROP_SHARE", 1.0)
-    rates = wa.parse_rates((FX / "wa_rates_slice.csv").read_text(encoding="utf-8"))
+    rates = wa.parse_rates((FX / "wa_rates_slice.csv").read_text(encoding="utf-8"), ON)
     doc = json.loads((FX / "wa_loccode_slice.geojson").read_text(encoding="utf-8"))
     with pytest.raises(ValueError, match="only 2 polygons"):
-        wa.to_features(doc, rates, "26Q3")
+        wa.to_features(doc, rates, "26Q3", {})

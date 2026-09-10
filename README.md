@@ -36,7 +36,8 @@ differently-dated rates file might not have. The only thing it borrows from the 
 the two-letter state code, looked up in that file's `states` block for the category rules; a
 code the loaded rates file does not know makes the polygon a miss, and the ZIP path answers
 instead. A polygon's profile id is minted the same way a ZIP row's is, so both sides of a
-jurisdiction share one id.
+jurisdiction share one id — and the build refuses to write if a shared id carries a
+different body in the two files.
 
 Where the polygons come from:
 
@@ -52,10 +53,12 @@ Where the polygons come from:
 
 `python -m pipeline bounds` **validates before it writes**: every polygon's profile must
 exist, every rate must sit in [0, 0.15], every Illinois profile must carry a food/drug rate,
-every arc index must be in range and every ring closed, per-source polygon counts must clear
-their floors, the `effectiveDate` must equal the rates file's, and the gzipped file must be
-**at most 1.5 MB** (the current build is ~620 KB). Any failure prints *REFUSING TO WRITE*,
-exits 1, and `publish.sh` never runs.
+every polygon must have at least one ring, every arc index must be in range and every ring
+closed, a profile id shared with the rates file must carry the same body there, the number of
+features handed to the merge must equal the number of polygons that come back out of it,
+per-source polygon counts must clear their floors, the `effectiveDate` must equal the rates
+file's, and the gzipped file must be **at most 1.5 MB** (the current build is ~620 KB). Any
+failure prints *REFUSING TO WRITE*, exits 1, and `publish.sh` never runs.
 
 **Building it needs Node.** Every coordinate operation — reading shapefiles, reprojecting,
 overlaying, simplifying, writing TopoJSON — is done by
@@ -140,8 +143,13 @@ outside every polygon.
   ZIP path. Inside those counties, the address-override ("rate varies") jurisdictions have no
   polygon either — a place with no rate row is never overlaid, so a fix there resolves to its
   county, which is the rate the ZIP path already answers.
-- A place the Census ZCTA relationship files never name has no polygon and falls to its
-  county.
+- A place the Census ZCTA relationship files never name **anywhere in the state** has no
+  polygon of its own: a fix inside it resolves to the county polygon it sits in and is
+  priced at the county rate, which is what the ZIP path already answers for it. A place the
+  files do name is crossed with every county of the state and priced wherever the state
+  files a row, so a municipality that straddles a county line is drawn and priced separately
+  on each side — Chicago at 10.5 % in Cook and 8.5 % in its DuPage sliver. The `fell_back`
+  count in each layer's `sources` entry is how many place pieces took their county's rate.
 - Seams between separately sourced layers (a CDTFA edge against a TIGER one) can differ by
   tens of metres, so a fix can land in a gap or an overlap between two of them; the app's
   accuracy sweep absorbs that by answering the dearer of the neighbours it finds.

@@ -54,7 +54,11 @@ def assemble(collected: list[Collected], topo_doc: dict, *, effective: str,
     A profile id that maps to two different bodies is fatal rather than last-write-wins: the
     id embeds the state, the rates and the label, so two bodies under one id would mean
     `model.profile_id` stopped being a function of the profile and a polygon could be priced
-    by whichever source happened to be collected second."""
+    by whichever source happened to be collected second.
+
+    Each source's `sources` entry carries the count of features it handed the merge
+    (`polygons`), the count that came back out of it (`count`), and, for the TIGER layers,
+    how many place pieces took their county's rate (`fell_back`)."""
     profiles: dict[str, dict] = {}
     for c in collected:
         for pid, entry in c.profiles.items():
@@ -70,7 +74,19 @@ def assemble(collected: list[Collected], topo_doc: dict, *, effective: str,
     sources: dict[str, dict] = {}
     for c in collected:
         for name, note in c.notes.items():
-            sources[name] = {**note, "count": counts.get(name, 0)}
+            # The one step in the build nothing else measures: `-simplify` and
+            # `-merge-layers` are handed N features and their output is read back by
+            # `polygons_from_topojson`, which skips any geometry that is not a Polygon or a
+            # MultiPolygon. A feature lost in there would be invisible to every gate but the
+            # coarse floors, so the count that went in has to equal the count that came out.
+            got = counts.get(name, 0)
+            if note.get("polygons") != got:
+                raise ValueError(
+                    f"{name}: {note.get('polygons')} features went into the merge but "
+                    f"{got} polygons came out of it -- mapshaper or the topology reader "
+                    f"dropped geometry"
+                )
+            sources[name] = {**note, "count": got}
     for name in sorted(sources):
         print(f"[bounds] {name}: {sources[name]['count']} polygons in the merged topology")
     return {"schemaVersion": VERSION, "effectiveDate": effective, "publishedAt": published,
@@ -119,8 +135,12 @@ def main(out_dir: str, sources: list[str]) -> int:
     try:
         with tempfile.TemporaryDirectory(prefix="daigou-bounds-") as tmp:
             doc = build(Path(tmp), _census(), on, sources)
-    except ValueError as e:
-        print(f"[bounds] REFUSING TO WRITE — {e}")
+    except Exception as e:
+        # Every exception, not only the parsers' own ValueErrors: a shifted CDTFA or DOR
+        # column raises KeyError, a truncated download zipfile.BadZipFile, the network
+        # requests' own errors, and a traceback is exactly the wrong answer at the moment a
+        # maintainer needs to be told the file was not written and why.
+        print(f"[bounds] REFUSING TO WRITE — {type(e).__name__}: {e}")
         return 1
     # A `--sources cdtfa` dev build must not fail for the sources it did not ask for, so the
     # floors are narrowed to the layers this run actually produced. `tiger` fans out into

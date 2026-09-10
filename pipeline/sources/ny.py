@@ -13,7 +13,7 @@ from pypdf import PdfReader
 from pipeline.census import Census, display_name, join_key
 from pipeline.http import get_cached
 from pipeline.model import ZipRate
-from pipeline.sources import REGISTRY, JurisdictionKey, geoid_index
+from pipeline.sources import REGISTRY, JurisdictionKey, geoid_index, wanted_places
 
 URL = "https://www.tax.ny.gov/pdf/publications/sales/pub718.pdf"
 STATE_RATE = Decimal("0.04")
@@ -120,7 +120,13 @@ class NyAdapter:
         instead. The five boroughs file no row of their own, so each borough county takes
         the single New York City row and they all mint one profile, exactly as their ZIPs
         do. New York taxes food and drugs at the general rate, so `food_drug_rate` is
-        `None` throughout."""
+        `None` throughout.
+
+        A city is crossed with every county of the state and Pub 718 decides, the same way
+        Illinois's table does and for the same reason: `geoid_index` names a place in the
+        county whose ZCTA happened to pick it, not in every county the city reaches, so a
+        city Pub 718 taxes on both sides of a county line would otherwise be priced on one
+        side only. A pairing Pub 718 does not file stays absent."""
         t = parse_lines(_fetch_lines())
         counties_by_key = {join_key(n): r for n, r in t.counties.items()}
         nyc_counties = {join_key(n) for n in NYC_COUNTIES}
@@ -134,14 +140,15 @@ class NyAdapter:
             if total is None:
                 continue
             out[county_geoid] = ZipRate("", "NY", STATE_RATE, total - STATE_RATE, None, label)
-        for (place_key, county_key), (place_geoid, county_geoid, name) in places.items():
-            if county_key in nyc_counties:
-                continue          # a borough is taxed as New York City, never on its own
-            total = t.cities.get((place_key, county_key))
-            if total is None:
-                continue          # a town, village or city Pub 718 does not tax separately
-            out[(place_geoid, county_geoid)] = ZipRate(
-                "", "NY", STATE_RATE, total - STATE_RATE, None, f"{name}, NY")
+        for place_geoid, (place_key, name) in wanted_places(places).items():
+            for county_key, (county_geoid, _label) in counties.items():
+                if county_key in nyc_counties:
+                    continue      # a borough is taxed as New York City, never on its own
+                total = t.cities.get((place_key, county_key))
+                if total is None:
+                    continue      # a town or village Pub 718 does not tax separately
+                out[(place_geoid, county_geoid)] = ZipRate(
+                    "", "NY", STATE_RATE, total - STATE_RATE, None, f"{name}, NY")
         return out
 
     def rows(self, census: Census, on: date) -> Iterable[ZipRate]:

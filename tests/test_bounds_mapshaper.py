@@ -70,4 +70,10 @@ def test_real_mapshaper_writes_a_shared_arc_topology(tmp_path):
     transform, arcs, polygons = polygons_from_topojson(topo)
     assert transform is not None and len(polygons) == 2
     assert len(arcs) == 3, "the shared edge must be one arc, not two"
+    # `precision=` is honoured despite the "Ignoring precision=" warning, but mapshaper
+    # snaps the grid to the dataset's extent, so the scale is the requested 1e-05 only
+    # approximately -- this fixture lands on it exactly and the real merged build writes
+    # 9.9999998e-06. Asserted within a tolerance for that reason: an exact-equality
+    # assertion would pass here and fail on the shipped file.
+    assert transform["scale"] == pytest.approx([1e-05, 1e-05], rel=1e-6)
     assert {p["profile"] for p in polygons} == {"T-0.05-0-LEFT, T", "T-0.05-0-RIGHT, T"}

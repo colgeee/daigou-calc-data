@@ -269,8 +269,18 @@ class SstAdapter:
             counties, _places = geoid_index(census, STATES[st])
             for county_geoid, county_label in counties.values():
                 row = cur.get((0, county_geoid[2:]))
-                general = state_row.general + (row.general if row else Decimal(0))
-                food = state_row.food + (row.food if row else Decimal(0))
+                if row is None:
+                    # Every county of a bounds state has to be priced: the polygon covers
+                    # the whole county, so there is no ZIP path underneath to answer for
+                    # it. Without this the state share alone composes below the floor and
+                    # the *state-rate-floor* error fires, naming the wrong cause entirely.
+                    raise ValueError(
+                        f"{st}: county {county_geoid} ({county_label}) has no current "
+                        f"county (type 0) rate row in {rate_files[st]} -- every county the "
+                        f"state's polygons are drawn from must have one"
+                    )
+                general = state_row.general + row.general
+                food = state_row.food + row.food
                 local_rate = general - state_rate
                 if local_rate < 0:
                     raise ValueError(

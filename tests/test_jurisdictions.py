@@ -2,6 +2,8 @@
 from datetime import date
 from decimal import Decimal as D
 
+import pytest
+
 from pipeline.census import Census
 from pipeline.model import profile_id
 from pipeline.sources import geoid_index, il, ny, sst, yaml_states
@@ -21,11 +23,33 @@ IL_FIXTURE = "\n".join([
     rec("022-0100-1", "ADDISON", "DUPAGE", "N", "20260801", "08000", "01000", "08000", "01000"),
 ])
 
+# Chicago is filed in both Cook and DuPage, at each county's own combined rate; Addison is
+# filed in DuPage only. No ZCTA in the census fixture below names Chicago as its dominant
+# place inside DuPage -- which is the whole point: the relationship files say where a ZIP's
+# centre of mass fell, not which counties a municipality reaches.
+IL_STRADDLE_FIXTURE = "\n".join([
+    rec("016-0001-1", "CHICAGO", "COOK", "N", "20260801", "10250", "01000", "10250", "01000"),
+    rec("016-0002-1", "CHICAGO", "DUPAGE", "N", "20260801", "08500", "01000", "08500", "01000"),
+    rec("016-5000-1", "COOK COUNTY", "COOK", "N", "20260801", "10000", "01000", "10000", "01000"),
+    rec("022-5000-1", "DUPAGE COUNTY", "DUPAGE", "N", "20260801",
+        "07250", "01000", "07250", "01000"),
+    rec("022-0100-1", "ADDISON", "DUPAGE", "N", "20260801", "08000", "01000", "08000", "01000"),
+])
+
 NY_FIXTURE_LINES = [
     "New York City 8\u215e 8081",
     "Westchester - except 8\u215c 6011",
     "  Yonkers (city) 8\u215e 6511",
     "  White Plains (city) 8\u215c 6501",
+]
+
+# The city of Oneida is filed under two county blocks, at a different rate under each.
+NY_STRADDLE_LINES = [
+    "New York City 8\u215e 8081",
+    "Madison - except 8\u00bc 6301",
+    "  Oneida (city) 8\u00be 6302",
+    "Oneida - except 8\u00be 6401",
+    "  Oneida (city) 8\u215c 6402",
 ]
 
 NV_RATES_INDEX = (
@@ -108,6 +132,51 @@ def test_illinois_jurisdictions_match_the_zip_rows_profile_id(monkeypatch):
     assert il.IlAdapter().bounds_states == ("IL",)
 
 
+def test_a_straddling_illinois_municipality_is_priced_in_every_county_idor_files_it_in(
+        monkeypatch):
+    """`geoid_index` learns a (place, county) pair only where a ZCTA in that county named
+    that place as its dominant one, which is where ZIP centres of mass fell, not where the
+    municipality reaches. Keying off those pairs alone priced Chicago in Cook and left its
+    DuPage sliver on DuPage's county rate -- the spec's own example of what the overlay is
+    for. Every place is now crossed with every county and IDOR's table decides."""
+    monkeypatch.setattr(il, "_fetch_text", lambda: IL_STRADDLE_FIXTURE)
+    monkeypatch.setattr(il, "MIN_DATA_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_COUNTY_ROWS", 1)
+    j = il.IlAdapter().jurisdictions(il_census(), ON)
+    # Chicago on both sides, each at its own county's combined rate, not Cook's twice.
+    assert profile_id(j[("1714000", "17031")]) == "IL-0.0625-0.04-CHICAGO, IL-FD0.01"
+    assert profile_id(j[("1714000", "17043")]) == "IL-0.0625-0.0225-CHICAGO, IL-FD0.01"
+    assert j[("1714000", "17043")].label == "Chicago, IL"
+
+
+def test_an_illinois_place_idor_files_in_one_county_only_gets_exactly_one_record(monkeypatch):
+    """The cross is inert where the state files no row: Addison is a DuPage municipality and
+    IDOR files it there and nowhere else, so it gets one record and Cook's remainder is
+    untouched. A pairing with no row emits no rated piece and the county answers."""
+    monkeypatch.setattr(il, "_fetch_text", lambda: IL_STRADDLE_FIXTURE)
+    monkeypatch.setattr(il, "MIN_DATA_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_COUNTY_ROWS", 1)
+    j = il.IlAdapter().jurisdictions(il_census(), ON)
+    assert [k for k in j if isinstance(k, tuple) and k[0] == "1700685"] \
+        == [("1700685", "17043")]
+    assert profile_id(j[("1700685", "17043")]) == "IL-0.0625-0.0175-ADDISON, IL-FD0.01"
+
+
+def test_a_straddling_new_york_city_is_priced_in_every_county_pub_718_files_it_in(monkeypatch):
+    """The same shape in New York: the city of Oneida is filed under two county blocks at a
+    different rate under each, and only one of them has a ZCTA that names it."""
+    monkeypatch.setattr(ny, "_fetch_lines", lambda: NY_STRADDLE_LINES)
+    monkeypatch.setattr(ny, "MIN_COUNTY_ROWS", 0)
+    c = Census(
+        centroids={"13421": (43.09, -75.65), "13402": (42.93, -75.59)},
+        county={"13421": ("36065", "Oneida County"), "13402": ("36053", "Madison County")},
+        place={"13421": ("3654881", "Oneida city")},
+    )
+    j = ny.NyAdapter().jurisdictions(c, ON)
+    assert profile_id(j[("3654881", "36065")]) == "NY-0.04-0.04375-ONEIDA, NY"
+    assert profile_id(j[("3654881", "36053")]) == "NY-0.04-0.0475-ONEIDA, NY"
+
+
 def test_new_york_cities_are_keyed_inside_their_own_county_and_the_boroughs_share_a_profile(
         monkeypatch):
     monkeypatch.setattr(ny, "_fetch_lines", lambda: NY_FIXTURE_LINES)
@@ -149,6 +218,23 @@ def test_nevada_counties_split_at_the_state_rate_floor(monkeypatch):
     assert profile_id(clark) == profile_id(zip_rows["89019"])
     assert profile_id(clark) == "NV-0.0685-0.01525-CLARK COUNTY, NV"
     assert sst.SstAdapter().bounds_states == ("NV",)
+
+
+def test_a_nevada_county_with_no_rate_row_fails_naming_that_cause(monkeypatch):
+    """A bounds state's county polygon covers the whole county, so there is no ZIP path
+    underneath to answer for an unpriced one. Without its own check the state share alone
+    composes below `STATE_RATE_FLOOR` and the *state-rate-floor* error fires, which names
+    the wrong cause entirely -- the floor is right, the row is missing."""
+    def fake(url, *, ttl_days: float = 1.0, min_bytes: int = 512) -> bytes:
+        if url == NV_RATE_URL:
+            return b"32,45,32,0.00000,0,0.00000,0,19830301,99991231\n"
+        return fake_nv_get_cached(url, ttl_days=ttl_days, min_bytes=min_bytes)
+
+    monkeypatch.setattr(sst, "get_cached", fake)
+    c = Census(centroids={"89101": (36.17, -115.14)},
+               county={"89101": ("32003", "Clark County")})
+    with pytest.raises(ValueError, match=r"32003 \(Clark County\) has no current county"):
+        sst.SstAdapter().jurisdictions(c, ON)
 
 
 def test_hawaii_counties_carry_the_pass_on_split_and_share_the_county_zip_row_s_profile():

@@ -34,7 +34,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 from pipeline.bounds import Collected, mapshaper, profile_entry
-from pipeline.census import Census, display_name
+from pipeline.census import Census, display_name, normalize_place
 from pipeline.http import get_cached
 from pipeline.model import ZipRate
 
@@ -77,29 +77,84 @@ def pick_quarter(html: str, pattern: re.Pattern, on: date, *, what: str,
     return urljoin(BASE, found[key]), f"{key[0]:02d}Q{key[1]}"
 
 
-def parse_rates(text: str) -> dict[str, tuple[Decimal, Decimal, str]]:
-    """Location code -> (state rate, local rate, the DOR's own name for the area).
+def _date8(value: str, code: str, column: str) -> date:
+    """A DOR `YYYYMMDD` date column. Anything else is a shifted or renamed column, which
+    must fail naming what it saw rather than be read as "no limit"."""
+    s = value.strip()
+    if len(s) != 8 or not s.isdigit():
+        raise ValueError(
+            f"DOR rates: code {code} has {column} {value.strip()!r}, not a YYYYMMDD date "
+            f"-- the column may have shifted"
+        )
+    try:
+        return date(int(s[:4]), int(s[4:6]), int(s[6:8]))
+    except ValueError as e:
+        raise ValueError(
+            f"DOR rates: code {code} has {column} {s!r}, which is not a real date"
+        ) from e
+
+
+def parse_rates(text: str, on: date) -> dict[str, tuple[Decimal, Decimal, str]]:
+    """Location code -> (state rate, local rate, the DOR's own name for the area), for the
+    rows in force on `on`.
 
     `Local` is in the file, but `Rate - State` is the number that adds back to the total the
-    DOR prints, and it carries the RTA and other add-on components a bare `Local` omits."""
+    DOR prints, and it carries the RTA and other add-on components a bare `Local` omits.
+
+    Each row carries `Effective Date` and `Expiration Date`, and both are read rather than
+    trusted to be this quarter's: a file that ever carried more than one quarter's rows
+    would otherwise collapse to one row per code -- whichever the reader saw last, possibly
+    an expired one -- at full row count, no drops, and every floor green. Nothing downstream
+    could catch that: `diff-rates` diffs the ZIP file, whose Washington rows come from SST,
+    not from this download. So a row not in force on `on` is ignored, a code left with no
+    row in force is simply absent (the polygon is dropped and the drop gate counts it), and
+    two rows in force for one code is fatal."""
     rows = csv.DictReader(io.StringIO(text))
     out: dict[str, tuple[Decimal, Decimal, str]] = {}
     for row in rows:
         code = str(row["Code"]).strip().zfill(4)
+        if _date8(row["Effective Date"], code, "an effective date") > on:
+            continue
+        if _date8(row["Expiration Date"], code, "an expiration date") < on:
+            continue
+        if code in out:
+            raise ValueError(
+                f"DOR rates: location code {code} has two rows in force on {on} "
+                f"({out[code][2]!r} and {str(row['Name']).strip()!r}) -- one code names one "
+                f"rate area, so there is no way to tell which rate it charges"
+            )
         state = Decimal(str(row["State"]).strip())
         local = Decimal(str(row["Rate"]).strip()) - state
         out[code] = (state, local, str(row["Name"]).strip())
     if len(out) < MIN_RATE_ROWS:
         raise ValueError(
-            f"DOR rates: only {len(out)} rate rows parsed, expected at least "
-            f"{MIN_RATE_ROWS} of the live 403 -- the download may be truncated or its "
-            f"columns may have shifted"
+            f"DOR rates: only {len(out)} rate rows in force on {on}, expected at least "
+            f"{MIN_RATE_ROWS} of the live 403 -- the download may be truncated, its "
+            f"columns may have shifted, or it may be the wrong quarter"
         )
     return out
 
 
+def census_casing(census: Census) -> dict[str, str]:
+    """`{normalised place name -> the Census's own casing}` for Washington's places.
+
+    The DOR uppercases its `Name` column, so a label has to be re-cased, and `display_name`
+    title-cases: `SEATAC` becomes `Seatac` where the Census (and therefore the ZIP row for
+    the same jurisdiction) writes `SeaTac`. The profile id uppercases the label, so the two
+    files still share the id -- and then disagree on the body under it, which is exactly the
+    invariant the README claims. Where the DOR's name for an area is a Census place name,
+    the Census's casing is reused and the two bodies match; anything else (`KING COUNTY
+    NON-RTA`, `AUBURN/KING RTA`) is the DOR's own namespace and stays with `display_name`."""
+    out: dict[str, str] = {}
+    for zcta, (geoid, namelsad) in census.place.items():
+        if not geoid.startswith("53"):
+            continue
+        out.setdefault(normalize_place(namelsad), census.place_display(zcta) or namelsad)
+    return out
+
+
 def to_features(geojson: dict, rates: dict[str, tuple[Decimal, Decimal, str]],
-                quarter: str) -> tuple[list[dict], dict[str, dict]]:
+                quarter: str, casing: dict[str, str]) -> tuple[list[dict], dict[str, dict]]:
     """One feature per priced rate area, carrying `id`, `source` and its profile id.
 
     A polygon whose code has no rate row is dropped -- there is no rate to give it -- but
@@ -117,7 +172,7 @@ def to_features(geojson: dict, rates: dict[str, tuple[Decimal, Decimal, str]],
             dropped.append(code)
             continue
         state, local, name = row
-        label = f"{display_name(name)}, WA"
+        label = f"{casing.get(normalize_place(name)) or display_name(name)}, WA"
         pid, entry = profile_entry(ZipRate("", "WA", state, local, None, label))
         profiles.setdefault(pid, entry)
         feats.append({
@@ -164,7 +219,12 @@ def _extract_shapefile(data: bytes, dest: Path) -> Path:
 
 
 def _rates_text(data: bytes) -> str:
-    """The single CSV inside the rates zip, decoded."""
+    """The single CSV inside the rates zip, decoded strictly.
+
+    `errors="replace"` would publish a rate area whose name carries a replacement character
+    rather than fail: a non-UTF-8 byte means the DOR changed the file's encoding, and a
+    mangled label is a wrong published name, not a warning. `UnicodeDecodeError` is a
+    `ValueError`, so `build.main` prints the house REFUSING TO WRITE line for it."""
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         names = [n for n in z.namelist()
                  if n.lower().endswith((".csv", ".txt")) and not n.endswith("/")]
@@ -172,16 +232,18 @@ def _rates_text(data: bytes) -> str:
             raise ValueError(
                 f"DOR rates zip: expected exactly one CSV, found {len(names)} ({names})"
             )
-        return z.read(names[0]).decode("utf-8-sig", errors="replace")
+        return z.read(names[0]).decode("utf-8-sig")
 
 
 def collect(work: Path, census: Census, on: date) -> Collected:
     """Scrape both DOR pages, download the quarter's boundary and rate files, and join.
 
-    `census` is unused: a rate area carries no ZIP and the DOR names its own areas
-    (decision #71); the argument is here so every source's `collect` is called alike.
-    mapshaper reads the shapefile's `.prj` (State Plane WA-South, feet), so no `proj_from`
-    is named here the way `bounds/ca.py` has to name one."""
+    `census` supplies nothing but casing: a rate area carries no ZIP and the DOR names its
+    own areas (decision #71), so the only thing borrowed from the Census is how it spells a
+    name the DOR uppercased -- `SeaTac`, not `Seatac` -- which is what keeps a shared
+    profile id's body identical in both published files. mapshaper reads the shapefile's
+    `.prj` (State Plane WA-South, feet), so no `proj_from` is named here the way
+    `bounds/ca.py` has to name one."""
     boundary_url, quarter = pick_quarter(
         get_cached(BOUNDARIES_URL).decode("utf-8", errors="replace"), _LOCCODE, on,
         what="boundaries")
@@ -190,13 +252,13 @@ def collect(work: Path, census: Census, on: date) -> Collected:
         what="rates", exact=True)
     print(f"[bounds:wa] boundaries {quarter}, rates {rates_quarter}")
 
-    rates = parse_rates(_rates_text(get_cached(rates_url, ttl_days=30)))
+    rates = parse_rates(_rates_text(get_cached(rates_url, ttl_days=30)), on)
     shp = _extract_shapefile(get_cached(boundary_url, ttl_days=30), work / "wa_shp")
     raw = work / "wa_raw.geojson"
     mapshaper.to_geojson(shp, raw)
     doc = json.loads(raw.read_text(encoding="utf-8-sig"))
 
-    feats, profiles = to_features(doc, rates, quarter)
+    feats, profiles = to_features(doc, rates, quarter, census_casing(census))
     dst = work / "wa.geojson"
     dst.write_text(
         json.dumps({"type": "FeatureCollection", "features": feats}), encoding="utf-8"

@@ -113,6 +113,35 @@ def test_effective_date_must_equal_the_rates_file_just_built():
                for e in errs(rates_doc={**RATES, "effectiveDate": "2026-10-01"}))
 
 
+def test_a_profile_shared_with_the_rates_file_must_carry_the_same_body_there():
+    """The id is minted from the body, so a shared id with a different body means one side
+    re-derived a field the id does not distinguish -- in the live build, `Seatac, WA` from
+    `display_name` against the Census's `SeaTac, WA`. The README claims both sides of a
+    jurisdiction share one id; without this the string was shared and the thing was not."""
+    shared = {**RATES, "profiles": {
+        "CA-0.0725-0.035-SANTA MONICA, CA": {
+            "state": "CA", "label": "Santa monica, CA", "stateRate": "0.0725",
+            "localRate": "0.035", "foodDrugRate": None}}}
+    out = errs(rates_doc=shared)
+    assert out == ["profile CA-0.0725-0.035-SANTA MONICA, CA: differs from the rates file "
+                   "(label 'Santa Monica, CA' vs 'Santa monica, CA')"]
+    # An id the rates file does not carry at all is not a difference: the bounds file is
+    # self-contained and draws jurisdictions no ZIP row names.
+    assert errs(rates_doc={**RATES, "profiles": {}}) == []
+
+
+def test_a_profile_the_two_files_agree_on_is_not_reported():
+    same = {**RATES, "profiles": copy.deepcopy(doc()["profiles"])}
+    assert errs(rates_doc=same) == []
+
+
+def test_a_polygon_with_no_rings_is_reported():
+    """A polygon that encloses nothing can never answer a fix, and is as unusable as the
+    open ring the geometry gate already refuses."""
+    assert any("no rings" in e for e in errs(lambda d: d["polygons"][0].update(rings=[])))
+    assert any("no rings" in e for e in errs(lambda d: d["polygons"][0].pop("rings")))
+
+
 def test_a_bad_ring_does_not_hide_a_later_bad_ring():
     """`ok` is per ring: a polygon whose first ring dangles must still have its second ring
     checked, or a bad index would mask an open ring behind it."""

@@ -8,8 +8,13 @@ and publishes no geometry of its own (spec §2.3):
   piece per (place, county) pair plus what is left of each county, so a municipality that
   straddles a county line becomes one polygon per county at that county's own combined rate
   -- Chicago is 10.5 % in Cook and 8.5 % in its DuPage sliver -- and a county's remainder is
-  its unincorporated territory at the county rate. A place with no rate row in the state's
-  table is never overlaid: it is unincorporated, or one of IDOR's ~200 address-override
+  its unincorporated territory at the county rate. That works only because the adapter's
+  table carries a row for *every* county the state files the municipality in, not just the
+  one the Census ZCTA files happened to name it in (`sources.wanted_places`); a piece whose
+  (place, county) pair the state files no row for falls back to the county's own rate, and
+  the layer counts those as `fell_back` so a join that quietly stopped matching shows up as
+  a number rather than as a silently cheaper quote. A place with no rate row anywhere is
+  never overlaid at all: it is unincorporated, or one of IDOR's ~200 address-override
   jurisdictions, and the county rate is what the ZIP path already answers for it.
 * **NV** and **HI** are the county polygons as they are: Nevada levies no city sales tax and
   Hawaii no sub-county tax, so a county boundary is exact for both.
@@ -56,7 +61,10 @@ class Layer:
 
 
 LAYERS = (
-    Layer("tiger-il", "IL", "17", IL_COUNTIES, True, 200),
+    # The pre-merge floor is `build.MIN_BY_SOURCE`'s post-merge one, deliberately: two
+    # different numbers for one layer is drift the next reader has to re-derive, and the
+    # earlier check has the better message.
+    Layer("tiger-il", "IL", "17", IL_COUNTIES, True, 1000),
     Layer("tiger-ny", "NY", "36", None, True, 60),
     # Nevada has no city sales tax and Hawaii no sub-county tax, so their counties are exact.
     Layer("tiger-nv", "NV", "32", None, False, 15),
@@ -69,7 +77,20 @@ def place_url(fips: str) -> str:
 
 
 def _js_list(values: Iterable[str]) -> str:
-    return "[" + ",".join(f'"{v}"' for v in sorted(values)) + "]"
+    """A JavaScript array literal of GEOIDs for a mapshaper `-filter` expression.
+
+    mapshaper *evaluates* the expression, and every value here arrives from a downloaded
+    Census relationship file, so a value is refused unless it is all digits -- a GEOID is
+    nothing else -- rather than interpolated into executable text on trust."""
+    out = []
+    for v in sorted(values):
+        if not v.isdigit():
+            raise ValueError(
+                f"TIGER filter: {v!r} is not a numeric GEOID -- the value is interpolated "
+                f"into a JavaScript expression mapshaper evaluates and is refused"
+            )
+        out.append(f'"{v}"')
+    return "[" + ",".join(out) + "]"
 
 
 def shapefile(url: str, work: Path, name: str) -> Path:
@@ -126,18 +147,26 @@ def plan(work: Path, layer: Layer, wanted_places: set[str]) -> list[Path]:
     return [unioned]
 
 
-def to_features(geojson: dict, layer: Layer,
-                table: dict[JurisdictionKey, ZipRate]) -> tuple[list[dict], dict[str, dict]]:
-    """One feature per priced piece, carrying `id`, `source` and its profile id.
+def to_features(geojson: dict, layer: Layer, table: dict[JurisdictionKey, ZipRate]
+                ) -> tuple[list[dict], dict[str, dict], int]:
+    """One feature per priced piece, carrying `id`, `source` and its profile id, plus the
+    number of place pieces that fell back to their county's rate.
 
     A piece inside a place takes `table[(place, county)]`; a piece with no place -- the
     county's unincorporated remainder -- takes `table[county]`, and so does a place piece
     the state files no row for in *that* county. A piece with neither is dropped: there is
-    no rate to give it, and the ZIP path underneath still answers for the address."""
+    no rate to give it, and the ZIP path underneath still answers for the address.
+
+    The fallback count is returned rather than only printed because it is the metric that
+    makes a broken place-to-rate join visible on the first build: a collapsed join keeps
+    every polygon and every floor green, and only turns each municipality into its county's
+    cheaper rate, so `build` records it in the `sources` block for the next quarter to
+    compare against."""
     feats: list[dict] = []
     profiles: dict[str, dict] = {}
     seen: dict[str, int] = {}
     dropped = 0
+    fell_back = 0
     for feature in geojson.get("features") or []:
         props = feature.get("properties") or {}
         cgeoid = str(props.get("CGEOID") or "").strip()
@@ -147,6 +176,8 @@ def to_features(geojson: dict, layer: Layer,
         if row is None:
             row = table.get(cgeoid)
             fid = f"{layer.source}:{cgeoid}"
+            if row is not None and pgeoid:
+                fell_back += 1
         if row is None:
             dropped += 1
             continue
@@ -171,8 +202,9 @@ def to_features(geojson: dict, layer: Layer,
             f"{layer.min_polygons} -- the TIGER download or the rate join may have shifted"
         )
     print(f"[bounds:{layer.source}] {len(feats)} polygons, {len(profiles)} jurisdictions, "
+          f"{fell_back} place pieces at their county's rate, "
           f"{dropped} unpriced pieces dropped")
-    return feats, profiles
+    return feats, profiles, fell_back
 
 
 def _county_of(key: JurisdictionKey) -> str:
@@ -213,15 +245,18 @@ def collect(work: Path, census: Census, on: date) -> Collected:
             table = {k: v for k, v in full.items() if _county_of(k).startswith(layer.fips)}
         wanted = {k[0] for k in table if isinstance(k, tuple)}
         n = 0
+        fell_back = 0
         for path in plan(work, layer, wanted):
             doc = json.loads(path.read_text(encoding="utf-8-sig"))
-            layer_feats, layer_profiles = to_features(doc, layer, table)
+            layer_feats, layer_profiles, layer_fell_back = to_features(doc, layer, table)
             feats.extend(layer_feats)
             profiles.update(layer_profiles)
             n += len(layer_feats)
+            fell_back += layer_fell_back
         notes[layer.source] = {
             "state": layer.state,
             "polygons": n,
+            "fell_back": fell_back,
             "url": place_url(layer.fips) if layer.overlay_places else COUNTY_URL,
         }
     dst = work / "tiger.geojson"

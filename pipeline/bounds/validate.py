@@ -49,7 +49,20 @@ def validate_bounds(doc: dict, *, rates_doc: dict, min_by_source: dict[str, int]
 
     profiles = doc.get("profiles", {})
     states = rates_doc.get("states", {})
+    rates_profiles = rates_doc.get("profiles", {})
     for pid, p in profiles.items():
+        # An id shared with the rates file must name the same profile in both. The id is
+        # minted from the body, so a shared id with a different body means one of the two
+        # sides re-derived a field the id does not distinguish -- in practice the label's
+        # casing -- and the README's "both sides of a jurisdiction share one id" would be
+        # true of the string and false of the thing it names.
+        other = rates_profiles.get(pid)
+        if other is not None and other != p:
+            diffs = ", ".join(
+                f"{k} {p.get(k)!r} vs {other.get(k)!r}"
+                for k in sorted(set(p) | set(other)) if p.get(k) != other.get(k)
+            )
+            errors.append(f"profile {pid}: differs from the rates file ({diffs})")
         s = _rate(p.get("stateRate"), f"profile {pid} stateRate", errors)
         loc = _rate(p.get("localRate"), f"profile {pid} localRate", errors)
         if s is not None and loc is not None and s + loc > MAX_RATE:
@@ -67,7 +80,13 @@ def validate_bounds(doc: dict, *, rates_doc: dict, min_by_source: dict[str, int]
         counts[poly.get("source", "")] += 1
         if poly.get("profile") not in profiles:
             errors.append(f"polygon {poly.get('id')}: unknown profile {poly.get('profile')}")
-        for ring in poly.get("rings", []):
+        rings = poly.get("rings") or []
+        if not rings:
+            # A polygon with no rings encloses nothing: the app can never resolve a fix to
+            # it, and it is as unusable as an open ring, which the loop below already
+            # refuses.
+            errors.append(f"polygon {poly.get('id')}: no rings")
+        for ring in rings:
             # Per ring, so a dangling index in one ring cannot mask an open ring after it.
             ok = True
             for idx in ring:
