@@ -10,9 +10,14 @@ set -euo pipefail
 # The exact published set, named rather than globbed: `cp out/v1/*` would publish whatever
 # happens to sit in the directory -- a stray `.tmp` from an interrupted write, a renamed
 # file from an older build -- and would silently publish nothing at all if the build wrote
-# nothing. Both files come out of the same `python -m pipeline rates` run, so both are
-# expected on every run.
-FILES=(rates.json.gz rates.json)
+# nothing. Both artifacts come out of one `python -m pipeline rates` plus `python -m
+# pipeline bounds`, so all four files are expected on every run, and the pre-flight below
+# refusing on a missing bounds file is the point rather than an inconvenience: a client must
+# never fetch a new `bounds.json.gz` against an old `rates.json.gz` -- the overlay's polygons
+# carry only a two-letter state code into the rates file's `states` block, and its
+# `effectiveDate` is half of the app's freshness clock -- and one commit carrying both files
+# is what guarantees it.
+FILES=(rates.json.gz rates.json bounds.json.gz bounds.json)
 
 msg="${1:-publish}"
 cd "$(git rev-parse --show-toplevel)"
@@ -27,7 +32,7 @@ for f in "${FILES[@]}"; do
 done
 if [ ${#bad[@]} -ne 0 ]; then
   echo "publish: REFUSING TO PUBLISH -- out/v1 is incomplete: ${bad[*]}" >&2
-  echo "publish: build first (python -m pipeline rates)" >&2
+  echo "publish: build first (python -m pipeline rates && python -m pipeline bounds)" >&2
   exit 1
 fi
 
@@ -96,7 +101,7 @@ done
 git -C "$work" rm -q --ignore-unmatch v1/fx.json
 cat > "$work/index.html" <<'EOF'
 <!doctype html><meta charset="utf-8"><title>daigou-calc-data</title>
-<p>Static data for 代購算盤 Daigou Calc: <a href="v1/rates.json.gz">v1/rates.json.gz</a> (quarterly). Exchange rates are not published here — the app fetches them directly. Source: <a href="https://github.com/colgeee/daigou-calc-data">github.com/colgeee/daigou-calc-data</a>.</p>
+<p>Static data for 代購算盤 Daigou Calc: <a href="v1/rates.json.gz">v1/rates.json.gz</a> (quarterly) and <a href="v1/bounds.json.gz">v1/bounds.json.gz</a> (the jurisdiction polygon overlay). Exchange rates are not published here — the app fetches them directly. Source: <a href="https://github.com/colgeee/daigou-calc-data">github.com/colgeee/daigou-calc-data</a>.</p>
 EOF
 touch "$work/.nojekyll"
 git -C "$work" add -A

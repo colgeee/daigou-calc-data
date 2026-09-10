@@ -232,7 +232,9 @@ def test_a_full_build_runs_the_partition_gate(monkeypatch):
     monkeypatch.setattr(build_rates, "check_partition", REAL_CHECK_PARTITION)
     a = FakeAdapter("a", ("CA",),
                     [ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Los Angeles, CA")])
-    with pytest.raises(ValueError, match="must partition all 52 states"):
+    # "52 state codes", not "52 states + DC": the count is `len(STATE_FIPS)`, which already
+    # has DC and GU inside it, so the old wording read as 52 + 1.
+    with pytest.raises(ValueError, match="must partition all 52 state codes"):
         build_rates.build(census(), date(2026, 9, 8), adapters=[a])
 
 

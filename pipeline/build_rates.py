@@ -44,7 +44,11 @@ def _adapters():
 
 
 def check_partition(adapters: list) -> None:
-    """Every state + DC must be claimed by exactly one adapter (F4).
+    """Every state code must be claimed by exactly one adapter (F4).
+
+    `STATE_FIPS` is the whole published set -- the 50 states, DC and Guam -- so the count in
+    the message below is the state *codes*, with DC and GU already inside it, not "states
+    + DC" on top of it.
 
     The per-state coverage gate below only measures the states an adapter actually claims,
     so an adapter dropped from the registry -- or one whose `states` tuple loses an entry in
@@ -71,8 +75,8 @@ def check_partition(adapters: list) -> None:
         problems.append(f"claimed by more than one adapter: {', '.join(twice)}")
     if problems:
         raise ValueError(
-            f"the {len(adapters)} adapters must partition all {len(STATE_FIPS)} states "
-            f"+ DC -- " + "; ".join(problems)
+            f"the {len(adapters)} adapters must partition all {len(STATE_FIPS)} state "
+            f"codes -- " + "; ".join(problems)
         )
 
 

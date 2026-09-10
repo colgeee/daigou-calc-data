@@ -3,19 +3,38 @@ on:
   schedule:
     - cron: "0 6 2 1,4,7,10 *"   # 2 Jan / 2 Apr / 2 Jul / 2 Oct, 06:00 UTC
   workflow_dispatch:
+    inputs:
+      allow_rate_swings:
+        description: "Publish even if the per-ZIP rate diff exceeds the gate (say why in the run notes)"
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency: publish
 jobs:
   rates:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
+    env:
+      # The bounds build shells out to mapshaper; naming the globally installed binary keeps
+      # the run offline and pinned rather than resolving through npx on every call.
+      MAPSHAPER: mapshaper
     steps:
       - uses: actions/checkout@v5
         with: {fetch-depth: 0}
       - uses: actions/setup-python@v6
         with: {python-version: "3.12", cache: pip}
+      - uses: actions/setup-node@v4
+        with: {node-version: "20"}
+      - run: npm i -g mapshaper@0.6.121
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
       - run: python -m pipeline rates
+      - run: python -m pipeline bounds
+      # The published file, read out of the checkout rather than over the network.
+      - run: git fetch --no-tags --quiet origin gh-pages
+      - run: >-
+          python -m pipeline diff-rates --out out
+          --published git:origin/gh-pages:v1/rates.json
+          ${{ inputs.allow_rate_swings && '--allow-swings' || '' }}
       - run: bash scripts/publish.sh "rates $(date -u +%F)"

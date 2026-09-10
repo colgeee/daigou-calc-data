@@ -25,9 +25,16 @@ from pipeline.census import Census
 SOURCES: dict[str, Callable[[Path, Census, date], Collected]] = {
     "cdtfa": ca.collect, "wa-dor": wa.collect, "tiger": tiger.collect, "gu": gu.collect,
 }
-# Per-source floors, checked on the merged file. CA 540, WA 403, the six Illinois metro
-# counties ~292 pieces, NY 62 counties + its Pub 718 cities, NV 17, HI 5, GU 1 (spec §2.1).
-MIN_BY_SOURCE = {"cdtfa": 500, "wa-dor": 380, "tiger-il": 200, "tiger-ny": 60,
+# Per-source floors, checked on the merged file. CA 540, WA 403, NY 62 counties + its Pub
+# 718 cities, NV 17, HI 5, GU 1 (spec §2.1). Illinois is the one floor that is not a token:
+# the built layer is 1 392 pieces, not the ~292 the spec estimated before it existed, and the
+# place-onto-county overlay plus the IDOR name join is the most fragile step in the build --
+# a join that quietly stopped matching would leave the metro's municipalities un-overlaid and
+# publish Chicago at Cook County's rate, which is exactly the silent wrong answer the floors
+# exist to make loud. 1 000 is a shade under three quarters of the live count: room for a
+# genuine TIGER revision, none for a collapsed join. 200 would have let six sevenths of the
+# layer disappear unnoticed.
+MIN_BY_SOURCE = {"cdtfa": 500, "wa-dor": 380, "tiger-il": 1000, "tiger-ny": 60,
                  "tiger-nv": 15, "tiger-hi": 5, "gu": 1}
 # The council's gate. The measured total is ~700 KB, so this is headroom, not a target.
 MAX_GZ_BYTES = 1_500_000
