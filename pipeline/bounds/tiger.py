@@ -77,8 +77,16 @@ def shapefile(url: str, work: Path, name: str) -> Path:
 
     The sidecars have to land beside it: mapshaper reads the `.dbf` for the attributes this
     module filters on and the `.prj` for the projection (TIGER ships NAD83, which `-proj
-    wgs84` shifts by a metre or two)."""
+    wgs84` shifts by a metre or two).
+
+    An extraction already sitting in `work/<name>/` is reused. The national county file is
+    80 MB and all four layers cut from it, so the name is shared and it is unpacked once a
+    build rather than four times."""
     dest = work / name
+    already = sorted(p for p in dest.rglob("*") if p.suffix.lower() == ".shp") \
+        if dest.is_dir() else []
+    if len(already) == 1:
+        return already[0]
     dest.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(io.BytesIO(get_cached(url, ttl_days=TTL_DAYS))) as z:
         z.extractall(dest)
@@ -98,7 +106,7 @@ def plan(work: Path, layer: Layer, wanted_places: set[str]) -> list[Path]:
     whole 3 234-county national layer -- and both rename `GEOID` first: the place file
     carries no `COUNTYFP`, so an unrenamed union would collide the two `GEOID` fields and
     lose the county id that prices the piece."""
-    county_shp = shapefile(COUNTY_URL, work, f"{layer.source}_county")
+    county_shp = shapefile(COUNTY_URL, work, "tiger_county")
     counties = work / f"{layer.source}_counties.geojson"
     county_filter = (f'{_js_list(layer.counties)}.indexOf(GEOID) > -1'
                      if layer.counties else f'STATEFP === "{layer.fips}"')
@@ -107,7 +115,7 @@ def plan(work: Path, layer: Layer, wanted_places: set[str]) -> list[Path]:
                    "-proj", "wgs84", "-o", str(counties), "format=geojson"])
     if not layer.overlay_places:
         return [counties]
-    place_shp = shapefile(place_url(layer.fips), work, f"{layer.source}_place")
+    place_shp = shapefile(place_url(layer.fips), work, f"tiger_{layer.fips}_place")
     places = work / f"{layer.source}_places.geojson"
     mapshaper.run(["-i", str(place_shp), "-filter",
                    f"{_js_list(wanted_places)}.indexOf(GEOID) > -1",
