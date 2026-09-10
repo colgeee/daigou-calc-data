@@ -112,3 +112,22 @@ def test_a_body_exactly_at_the_floor_is_cached(tmp_path, monkeypatch):
     monkeypatch.setattr(http.requests, "get", lambda url, **kw: FakeResp(content=body))
     assert http.get_cached("https://example.test/f") == body
     assert [p.read_bytes() for p in tmp_path.iterdir()] == [body]
+
+
+def test_get_polled_waits_for_the_200_and_caches_only_that(tmp_path, monkeypatch):
+    """CDTFA's Hub export answers 202 with a job-status body until the file is built
+    (spec §2.3). `get_cached` would cache that 183-byte status as the layer."""
+    monkeypatch.setenv("PIPELINE_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(http.time, "sleep", lambda s: None)
+    bodies = iter([FakeResp(b"{}" * 400, 202), FakeResp(b"x" * 1024, 200)])
+    monkeypatch.setattr(http.requests, "get", lambda url, **kw: next(bodies))
+    assert http.get_polled("https://example.test/geojson", poll_seconds=0) == b"x" * 1024
+    assert [p for p in tmp_path.iterdir() if p.is_file()]
+
+
+def test_get_polled_gives_up_with_a_named_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("PIPELINE_CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr(http.time, "sleep", lambda s: None)
+    monkeypatch.setattr(http.requests, "get", lambda url, **kw: FakeResp(b"{}" * 400, 202))
+    with pytest.raises(ValueError, match="still answering 202 after 3 polls"):
+        http.get_polled("https://example.test/geojson", attempts=3, poll_seconds=0)

@@ -70,3 +70,33 @@ def get_cached(url: str, *, ttl_days: float = 1.0, min_bytes: int = MIN_BODY_BYT
         time.sleep(2**attempt)
     assert last is not None
     raise last
+
+
+def get_polled(url: str, *, ttl_days: float = 7.0, min_bytes: int = MIN_BODY_BYTES,
+               poll_seconds: float = 10.0, attempts: int = 30) -> bytes:
+    """`get_cached` for a source that answers `202` with a job-status body while it builds
+    the file, then `200` with the file itself. The on-disk cache is consulted exactly as
+    `get_cached` consults it, so a rerun inside the TTL never re-polls; only a 200 body is
+    ever written. `get_cached` cannot do this: `raise_for_status` passes a 202 through and
+    the 183-byte status JSON would be cached as the layer for a whole TTL."""
+    path = cache_dir() / hashlib.sha1(url.encode()).hexdigest()
+    if path.is_file() and (time.time() - path.stat().st_mtime) < ttl_days * 86400:
+        return path.read_bytes()
+    for _ in range(attempts):
+        resp = requests.get(url, headers={"User-Agent": UA}, timeout=120)
+        if resp.status_code == 200:
+            body = resp.content
+            if len(body) < min_bytes:
+                raise ValueError(
+                    f"{url}: response body is {len(body)} bytes, under the "
+                    f"{min_bytes}-byte floor -- refusing to cache it"
+                )
+            _write_cache(path, body)
+            return body
+        if resp.status_code != 202:
+            resp.raise_for_status()
+            raise ValueError(f"{url}: unexpected status {resp.status_code} while polling")
+        time.sleep(poll_seconds)
+    raise ValueError(
+        f"{url}: still answering 202 after {attempts} polls -- the export job did not finish"
+    )
