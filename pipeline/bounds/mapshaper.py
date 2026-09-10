@@ -57,8 +57,14 @@ def simplify(src: Path, dst: Path, pct: int = 10) -> None:
     """Simplify one source **on its own** (spec §2.3): `-simplify` ranks vertices across
     the whole dataset it is given, so one merged run would trade California's detail
     against TIGER's coastlines in a way nobody has measured. `keep-shapes` so no small city
-    is simplified out of existence."""
-    run(["-i", str(src), "-simplify", f"{pct}% keep-shapes", "-o", str(dst), "format=geojson"])
+    is simplified out of existence.
+
+    The percentage and the flag are separate argv entries: mapshaper parses one `10%
+    keep-shapes` string as the percentage itself and exits 1 with `Invalid percentage`
+    (0.6.121, verified 2026-09-10) -- a shell would have split them, `subprocess` does
+    not."""
+    run(["-i", str(src), "-simplify", f"{pct}%", "keep-shapes", "-o", str(dst),
+         "format=geojson"])
 
 
 def union(srcs: list[Path], dst: Path, *, fields: list[str]) -> None:

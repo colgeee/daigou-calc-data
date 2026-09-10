@@ -1,0 +1,107 @@
+import gzip
+import json
+from datetime import date
+from pathlib import Path
+
+from pipeline.bounds import Collected, build
+from pipeline.bounds.validate import KEYS
+
+ON = date(2026, 9, 9)
+FX = Path(__file__).parent / "fixtures"
+
+RATES = {"schemaVersion": "1", "effectiveDate": "2026-07-01", "publishedAt": "x",
+         "profiles": {}, "states": {"T": {"localCoverage": True, "rules": {}, "confidence": {}}},
+         "zips": []}
+PROFILES = {"T-0.05-0-LEFT, T": {"state": "T", "label": "Left, T", "stateRate": "0.05",
+                                 "localRate": "0", "foodDrugRate": None},
+            "T-0.05-0-RIGHT, T": {"state": "T", "label": "Right, T", "stateRate": "0.05",
+                                  "localRate": "0", "foodDrugRate": None}}
+
+
+def fake_source(name: str):
+    """A source that hands the builder the two-triangle FeatureCollection under its own
+    file name, so two of them in one build do not overwrite each other."""
+    def collect(work, census, on):
+        p = work / f"{name}.geojson"
+        p.write_text((FX / "two_triangles.geojson").read_text(encoding="utf-8"), encoding="utf-8")
+        return Collected(p, dict(PROFILES), {name: {"polygons": 2}})
+    return collect
+
+
+def stub_geometry(monkeypatch):
+    """mapshaper is monkeypatched everywhere but Task 1's one integration test."""
+    monkeypatch.setattr(build.mapshaper, "simplify",
+                        lambda src, dst, pct=10: dst.write_text(
+                            src.read_text(encoding="utf-8"), encoding="utf-8"))
+    monkeypatch.setattr(build.mapshaper, "merge_to_topojson",
+                        lambda srcs, dst, precision="0.00001": dst.write_text(
+                            (FX / "two_triangles.topojson").read_text(encoding="utf-8"),
+                            encoding="utf-8"))
+
+
+def test_build_assembles_the_documented_shape(tmp_path, monkeypatch):
+    stub_geometry(monkeypatch)
+    monkeypatch.setattr(build, "SOURCES", {"t": fake_source("t")})
+    doc = build.build(tmp_path, census=None, on=ON, sources=["t"])
+    assert set(doc) == KEYS
+    assert doc["schemaVersion"] == "1"
+    assert doc["effectiveDate"] == "2026-07-01"          # the quarter the build sits in
+    assert doc["transform"] == {"scale": [1e-05, 1e-05], "translate": [0, 0]}
+    assert len(doc["arcs"]) == 3 and len(doc["polygons"]) == 2
+    assert doc["polygons"][0]["rings"] == [[0, 1]]
+    assert doc["profiles"] == PROFILES
+    assert doc["sources"] == {"t": {"polygons": 2, "count": 2}}
+
+
+def test_build_simplifies_each_source_on_its_own(tmp_path, monkeypatch):
+    """`-simplify` ranks vertices across the whole dataset it is given, so one merged run
+    would trade California's detail against TIGER's coastlines (spec §2.3)."""
+    calls: list[int] = []
+    monkeypatch.setattr(build.mapshaper, "simplify",
+                        lambda src, dst, pct=10: calls.append(pct) or dst.write_text(
+                            src.read_text(encoding="utf-8"), encoding="utf-8"))
+    monkeypatch.setattr(build.mapshaper, "merge_to_topojson",
+                        lambda srcs, dst, precision="0.00001": (
+                            calls.append(len(srcs)),
+                            dst.write_text((FX / "two_triangles.topojson").read_text("utf-8"),
+                                           encoding="utf-8")))
+    monkeypatch.setattr(build, "SOURCES", {"a": fake_source("a"), "b": fake_source("b")})
+    build.build(tmp_path, census=None, on=ON, sources=["a", "b"])
+    assert calls == [10, 10, 2]
+
+
+def test_main_refuses_without_a_rates_file(tmp_path, capsys):
+    assert build.main(str(tmp_path), ["t"]) == 1
+    out = capsys.readouterr().out
+    assert "REFUSING TO WRITE" in out and "rates.json" in out and "pipeline rates" in out
+
+
+def test_main_writes_both_files_atomically_and_prints_the_sizes(tmp_path, monkeypatch, capsys):
+    stub_geometry(monkeypatch)
+    monkeypatch.setattr(build, "SOURCES", {"t": fake_source("t")})
+    monkeypatch.setattr(build, "MIN_BY_SOURCE", {"t": 1})
+    monkeypatch.setattr(build, "_census", lambda: None)
+    monkeypatch.setattr(build, "build_date", lambda: ON)
+    v1 = tmp_path / "v1"
+    v1.mkdir()
+    (v1 / "rates.json").write_text(json.dumps(RATES), encoding="utf-8")
+    assert build.main(str(tmp_path), ["t"]) == 0
+    doc = json.loads(gzip.decompress((v1 / "bounds.json.gz").read_bytes()).decode("utf-8"))
+    assert len(doc["polygons"]) == 2
+    assert not list(v1.glob("*.tmp"))
+    assert b"\r\n" not in (v1 / "bounds.json").read_bytes()
+    assert "[bounds] wrote" in capsys.readouterr().out
+
+
+def test_main_refuses_when_validation_fails(tmp_path, monkeypatch, capsys):
+    stub_geometry(monkeypatch)
+    monkeypatch.setattr(build, "SOURCES", {"t": fake_source("t")})
+    monkeypatch.setattr(build, "MIN_BY_SOURCE", {"t": 500})
+    monkeypatch.setattr(build, "_census", lambda: None)
+    monkeypatch.setattr(build, "build_date", lambda: ON)
+    v1 = tmp_path / "v1"
+    v1.mkdir()
+    (v1 / "rates.json").write_text(json.dumps(RATES), encoding="utf-8")
+    assert build.main(str(tmp_path), ["t"]) == 1
+    assert "REFUSING TO WRITE" in capsys.readouterr().out
+    assert not (v1 / "bounds.json.gz").exists()

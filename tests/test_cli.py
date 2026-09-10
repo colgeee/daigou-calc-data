@@ -21,6 +21,12 @@ def test_fx_subcommand_is_gone():
     assert "invalid choice" in out.stderr
 
 
+def test_bounds_and_diff_rates_subcommands_exist():
+    out = subprocess.run([sys.executable, "-m", "pipeline", "--help"],
+                         capture_output=True, text=True)
+    assert "bounds" in out.stdout and "diff-rates" in out.stdout
+
+
 def test_quarter_start():
     assert quarter_start(date(2026, 9, 8)) == date(2026, 7, 1)
     assert quarter_start(date(2026, 10, 1)) == date(2026, 10, 1)

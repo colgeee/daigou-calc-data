@@ -48,7 +48,9 @@ def test_helpers_build_the_documented_argument_lists(monkeypatch):
     assert seen[0] == ["-i", "a.shp", "-proj", "wgs84", "-o", "b.json", "format=geojson"]
     assert seen[1][2:5] == ["-proj", "from=EPSG:3857", "wgs84"]
     # `keep-shapes` so no small city is simplified out of existence (spec §2.1).
-    assert seen[2] == ["-i", "d.json", "-simplify", "10% keep-shapes",
+    # Separate argv entries: `subprocess` passes one string as one argument, and mapshaper
+    # 0.6.121 reads `10% keep-shapes` as the percentage and exits with `Invalid percentage`.
+    assert seen[2] == ["-i", "d.json", "-simplify", "10%", "keep-shapes",
                        "-o", "e.json", "format=geojson"]
     assert seen[3] == ["-i", "cty.json", "plc.json", "combine-files", "-union", "target=*",
                        "-filter-fields", "CGEOID,PGEOID", "-o", "u.json", "format=geojson"]
