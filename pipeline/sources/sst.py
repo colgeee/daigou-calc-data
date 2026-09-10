@@ -13,7 +13,7 @@ from urllib.parse import urljoin
 from pipeline.census import Census, display_name
 from pipeline.http import get_cached
 from pipeline.model import ZipRate
-from pipeline.sources import REGISTRY
+from pipeline.sources import REGISTRY, JurisdictionKey, geoid_index
 
 MIRROR = "http://52.15.48.162/ratesandboundry"
 # The mirror's per-state payloads are legitimately tiny wherever a state has one statewide
@@ -238,6 +238,51 @@ def _zip_range(lo: str, hi: str) -> Iterable[str]:
 class SstAdapter:
     name = "sst"
     states = tuple(STATES)
+    # The mirror covers 24 states, but only Nevada prices every address in a county at the
+    # county's own rate with no sub-county district on top, so only Nevada's polygons can be
+    # drawn from a county boundary alone (spec §2.3).
+    bounds_states = ("NV",)
+
+    def jurisdictions(self, census: Census, on: date) -> dict[JurisdictionKey, ZipRate]:
+        """The counties of each `bounds_states` state, keyed by TIGER GEOID. Only the rate
+        file is fetched -- the geography comes from TIGER, not from the boundary file's ZIP
+        ranges -- and the state share is split at `STATE_RATE_FLOOR` exactly as `compose`
+        splits it, so a Clark County polygon and a Clark County ZIP row mint one profile."""
+        rate_files = latest_files(get_cached(f"{MIRROR}/Rates/").decode("utf-8", "replace"), "R")
+        out: dict[JurisdictionKey, ZipRate] = {}
+        for st in self.bounds_states:
+            if st not in rate_files:
+                print(f"[sst] {st}: no rate file on mirror, no jurisdictions to draw")
+                continue
+            rate_url = urljoin(f"{MIRROR}/", rate_files[st])
+            rates = parse_rate_file(
+                unpack(
+                    get_cached(rate_url, ttl_days=7, min_bytes=MIN_PAYLOAD_BYTES),
+                    rate_files[st],
+                )
+            )
+            cur = _current(rates, on)
+            state_row = next((r for (t, _), r in cur.items() if t == 45), None)
+            if state_row is None:
+                raise ValueError(f"{st}: no current state-level (45) rate row")
+            state_rate = max(state_row.general, STATE_RATE_FLOOR.get(st, state_row.general))
+            counties, _places = geoid_index(census, STATES[st])
+            for county_geoid, county_label in counties.values():
+                row = cur.get((0, county_geoid[2:]))
+                general = state_row.general + (row.general if row else Decimal(0))
+                food = state_row.food + (row.food if row else Decimal(0))
+                local_rate = general - state_rate
+                if local_rate < 0:
+                    raise ValueError(
+                        f"{st}: county {county_geoid} ({county_label}) composes to "
+                        f"{general}, below the published state share {state_rate} -- the "
+                        f"state-rate floor is wrong for this state"
+                    )
+                out[county_geoid] = ZipRate(
+                    "", st, state_rate, local_rate,
+                    None if food == general else food, f"{county_label}, {st}",
+                )
+        return out
 
     def rows(self, census: Census, on: date) -> Iterable[ZipRate]:
         rate_files = latest_files(get_cached(f"{MIRROR}/Rates/").decode("utf-8", "replace"), "R")

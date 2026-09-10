@@ -9,9 +9,9 @@ from pathlib import Path
 
 import yaml
 
-from pipeline.census import Census, display_name
+from pipeline.census import Census, display_name, join_key
 from pipeline.model import ZipRate
-from pipeline.sources import REGISTRY
+from pipeline.sources import REGISTRY, JurisdictionKey, geoid_index
 
 RULES_DIR = Path(__file__).resolve().parent.parent / "rules" / "states"
 FIPS = {
@@ -128,10 +128,34 @@ def rows_for(table: StateTable, census: Census) -> Iterable[ZipRate]:
 class YamlStatesAdapter:
     name = "yaml"
     states = tuple(sorted(FIPS))
+    # Hawaii is the only YAML state whose local rate varies by county, so it is the only one
+    # with a polygon worth drawing; the rest are flat statewide and stay ZIP-only. Guam is
+    # a rectangle Task 6 draws from its own YAML `bounds` instead (spec §2.6).
+    bounds_states = ("HI",)
 
     def rows(self, census: Census, on: date) -> Iterable[ZipRate]:
         for path in sorted(RULES_DIR.glob("*.yaml")):
             yield from rows_for(load_state(path), census)
+
+    def jurisdictions(self, census: Census, on: date) -> dict[JurisdictionKey, ZipRate]:
+        """Each `bounds_states` state's counties keyed by TIGER GEOID, priced from the same
+        YAML table and put through the same `published_rates` split `rows_for` uses, so a
+        Honolulu County polygon and a Honolulu County ZIP row mint one profile."""
+        out: dict[JurisdictionKey, ZipRate] = {}
+        for st in self.bounds_states:
+            table = load_state(RULES_DIR / f"{st.lower()}.yaml")
+            by_name = {join_key(k): v for k, v in table.county_rates.items()}
+            counties, _places = geoid_index(census, FIPS[st])
+            for county_key, (county_geoid, county_label) in counties.items():
+                local = table.county_rates.get(county_geoid)
+                if local is None:
+                    local = by_name.get(county_key, Decimal("0"))
+                state_rate, local_rate = published_rates(table, local)
+                out[county_geoid] = ZipRate(
+                    "", st, state_rate, local_rate, table.food_drug_rate,
+                    table.label or f"{county_label}, {st}",
+                )
+        return out
 
 
 REGISTRY.append(YamlStatesAdapter())

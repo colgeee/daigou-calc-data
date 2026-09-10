@@ -15,7 +15,7 @@ from decimal import Decimal
 from pipeline.census import Census, display_name, join_key
 from pipeline.http import get_cached
 from pipeline.model import ZipRate
-from pipeline.sources import REGISTRY
+from pipeline.sources import REGISTRY, JurisdictionKey, geoid_index
 
 URL = (
     "https://tax.illinois.gov/content/dam/soi/en/web/tax/research/taxrates/documents/"
@@ -158,6 +158,30 @@ def _local(row: IlRow, gm: Decimal) -> Decimal:
 class IlAdapter:
     name = "il"
     states = ("IL",)
+    bounds_states = ("IL",)
+
+    def jurisdictions(self, census: Census, on: date) -> dict[JurisdictionKey, ZipRate]:
+        """The same table `rows` prices ZIPs from, keyed by geography instead. Every record
+        carries the jurisdiction's own food/drug rate, so a Chicago grocery quote off a
+        polygon is the 1% Illinois publishes rather than the general rate."""
+        table = {(join_key(r.name), join_key(r.county)): r for r in parse(_fetch_text())}
+        counties, places = geoid_index(census, "17")
+        out: dict[JurisdictionKey, ZipRate] = {}
+        for county_key, (county_geoid, county_label) in counties.items():
+            row = table.get((join_key(f"{county_key} COUNTY"), county_key))
+            if row is None:
+                continue
+            gm, dm, _covered = row.rates(on)
+            out[county_geoid] = ZipRate("", "IL", STATE_RATE, _local(row, gm), dm,
+                                        f"{county_label}, IL")
+        for (place_key, county_key), (place_geoid, county_geoid, name) in places.items():
+            row = table.get((place_key, county_key))
+            if row is None:
+                continue          # unincorporated, or a jurisdiction IDOR taxes by address
+            gm, dm, _covered = row.rates(on)
+            out[(place_geoid, county_geoid)] = ZipRate("", "IL", STATE_RATE, _local(row, gm),
+                                                       dm, f"{name}, IL")
+        return out
 
     def rows(self, census: Census, on: date) -> Iterable[ZipRate]:
         # Keyed on (name, county), as Texas is: 140 municipality names are filed more than
