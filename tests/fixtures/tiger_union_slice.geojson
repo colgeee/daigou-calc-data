@@ -1,0 +1,7 @@
+{"type": "FeatureCollection", "features": [
+ {"type": "Feature", "properties": {"CGEOID": "17031", "PGEOID": "1714000"},
+  "geometry": {"type": "Polygon", "coordinates": [[[-87.7,41.8],[-87.6,41.8],[-87.6,41.9],[-87.7,41.8]]]}},
+ {"type": "Feature", "properties": {"CGEOID": "17031", "PGEOID": null},
+  "geometry": {"type": "Polygon", "coordinates": [[[-87.6,41.8],[-87.5,41.8],[-87.5,41.9],[-87.6,41.8]]]}},
+ {"type": "Feature", "properties": {"CGEOID": "17043", "PGEOID": "1714000"},
+  "geometry": {"type": "Polygon", "coordinates": [[[-87.9,41.8],[-87.8,41.8],[-87.8,41.9],[-87.9,41.8]]]}}]}
