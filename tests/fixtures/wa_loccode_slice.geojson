@@ -1,0 +1,7 @@
+{"type": "FeatureCollection", "features": [
+ {"type": "Feature", "properties": {"LOCCODE": "1726"},
+  "geometry": {"type": "Polygon", "coordinates": [[[-122.3,47.6],[-122.2,47.6],[-122.2,47.7],[-122.3,47.6]]]}},
+ {"type": "Feature", "properties": {"LOCCODE": "4000"},
+  "geometry": {"type": "Polygon", "coordinates": [[[-122.2,47.6],[-122.1,47.6],[-122.1,47.7],[-122.2,47.6]]]}},
+ {"type": "Feature", "properties": {"LOCCODE": "9999"},
+  "geometry": {"type": "Polygon", "coordinates": [[[-122.1,47.6],[-122.0,47.6],[-122.0,47.7],[-122.1,47.6]]]}}]}
