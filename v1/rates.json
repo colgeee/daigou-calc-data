@@ -1,7 +1,7 @@
 {
  "schemaVersion": "1",
  "effectiveDate": "2026-07-01",
- "publishedAt": "2026-09-08T18:25:57Z",
+ "publishedAt": "2026-09-10T08:28:31Z",
  "profiles": {
   "MA-0.0625-0-AGAWAM TOWN, MA": {
    "state": "MA",
@@ -54372,165 +54372,172 @@
    "localRate": "0",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-HONOLULU COUNTY, HI": {
+  "HI-0.041885-0.005235-HONOLULU COUNTY, HI": {
    "state": "HI",
    "label": "Honolulu County, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-KAUAI COUNTY, HI": {
+  "HI-0.041885-0.005235-KAUAI COUNTY, HI": {
    "state": "HI",
    "label": "Kauai County, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-HAWAII COUNTY, HI": {
+  "HI-0.041885-0.005235-HAWAII COUNTY, HI": {
    "state": "HI",
    "label": "Hawaii County, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0-MAUI COUNTY, HI": {
+  "HI-0.041885-0.005235-MAUI COUNTY, HI": {
    "state": "HI",
    "label": "Maui County, HI",
-   "stateRate": "0.04",
-   "localRate": "0",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-HAWI, HI": {
+  "HI-0.041885-0.005235-HAWI, HI": {
    "state": "HI",
    "label": "Hawi, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-KAAAWA, HI": {
+  "HI-0.041885-0.005235-KAAAWA, HI": {
    "state": "HI",
    "label": "Kaaawa, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0-KAHULUI, HI": {
+  "HI-0.041885-0.005235-KAHULUI, HI": {
    "state": "HI",
    "label": "Kahului, HI",
-   "stateRate": "0.04",
-   "localRate": "0",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-HAWAIIAN OCEAN VIEW, HI": {
+  "HI-0.041885-0.005235-HAWAIIAN OCEAN VIEW, HI": {
    "state": "HI",
    "label": "Hawaiian Ocean View, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0-KALAWAO COUNTY, HI": {
+  "HI-0.041667-0-KALAWAO COUNTY, HI": {
    "state": "HI",
    "label": "Kalawao County, HI",
-   "stateRate": "0.04",
+   "stateRate": "0.041667",
    "localRate": "0",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-KAUMAKANI, HI": {
+  "HI-0.041885-0.005235-KAUMAKANI, HI": {
    "state": "HI",
    "label": "Kaumakani, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-KEALAKEKUA, HI": {
+  "HI-0.041885-0.005235-KEALAKEKUA, HI": {
    "state": "HI",
    "label": "Kealakekua, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0-KUALAPUU, HI": {
+  "HI-0.041885-0.005235-KUALAPUU, HI": {
    "state": "HI",
    "label": "Kualapuu, HI",
-   "stateRate": "0.04",
-   "localRate": "0",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-HAWAIIAN ACRES, HI": {
+  "HI-0.041885-0.005235-HAWAIIAN ACRES, HI": {
    "state": "HI",
    "label": "Hawaiian Acres, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-LAUPAHOEHOE, HI": {
+  "HI-0.041885-0.005235-LAUPAHOEHOE, HI": {
    "state": "HI",
    "label": "Laupahoehoe, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-LAWAI, HI": {
+  "HI-0.041885-0.005235-LAWAI, HI": {
    "state": "HI",
    "label": "Lawai, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-MOUNTAIN VIEW, HI": {
+  "HI-0.041885-0.005235-MOUNTAIN VIEW, HI": {
    "state": "HI",
    "label": "Mountain View, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0-PAIA, HI": {
+  "HI-0.041885-0.005235-PAIA, HI": {
    "state": "HI",
    "label": "Paia, HI",
-   "stateRate": "0.04",
-   "localRate": "0",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-WAIMEA, HI": {
+  "HI-0.041885-0.005235-WAIMEA, HI": {
    "state": "HI",
    "label": "Waimea, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-URBAN HONOLULU, HI": {
+  "HI-0.041885-0.005235-URBAN HONOLULU, HI": {
    "state": "HI",
    "label": "Urban Honolulu, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-HICKAM HOUSING, HI": {
+  "HI-0.041885-0.005235-HICKAM HOUSING, HI": {
    "state": "HI",
    "label": "Hickam Housing, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-EAST HONOLULU, HI": {
+  "HI-0.041885-0.005235-EAST HONOLULU, HI": {
    "state": "HI",
    "label": "East Honolulu, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-SCHOFIELD BARRACKS, HI": {
+  "HI-0.041885-0.005235-SCHOFIELD BARRACKS, HI": {
    "state": "HI",
    "label": "Schofield Barracks, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
    "foodDrugRate": null
   },
-  "HI-0.04-0.005-KANEOHE BASE, HI": {
+  "HI-0.041885-0.005235-KANEOHE BASE, HI": {
    "state": "HI",
    "label": "Kaneohe Base, HI",
-   "stateRate": "0.04",
-   "localRate": "0.005",
+   "stateRate": "0.041885",
+   "localRate": "0.005235",
+   "foodDrugRate": null
+  },
+  "GU-0-0-GUAM": {
+   "state": "GU",
+   "label": "Guam",
+   "stateRate": "0",
+   "localRate": "0",
    "foodDrugRate": null
   },
   "OR-0-0-WASCO COUNTY, OR": {
@@ -58173,6 +58180,17 @@
    "confidence": {
     "supplement": "medium",
     "grocery": "high"
+   }
+  },
+  "GU": {
+   "localCoverage": true,
+   "rules": {
+    "prescription": {
+     "t": "exempt"
+    }
+   },
+   "confidence": {
+    "supplement": "medium"
    }
   },
   "CA": {
@@ -252111,583 +252129,625 @@
    "96701",
    21406053,
    -157884952,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96703",
    22136140,
    -159371914,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96704",
    19294365,
    -155840633,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96705",
    21899532,
    -159568546,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96706",
    21344782,
    -158022298,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96707",
    21363106,
    -158082206,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96708",
    20882830,
    -156232168,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96710",
    19842536,
    -155247370,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96712",
    21651861,
    -157982756,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96713",
    20734150,
    -156106979,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96714",
    22131250,
    -159520972,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96716",
    21910263,
    -159600932,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96717",
    21557794,
    -157905340,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96719",
    20240159,
    -155833027,
-   "HI-0.04-0.005-HAWI, HI"
+   "HI-0.041885-0.005235-HAWI, HI"
   ],
   [
    "96720",
    19659810,
    -155232473,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96722",
    22188380,
    -159460894,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96725",
    19596712,
    -155901448,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96726",
    19421466,
    -155810917,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96727",
    20105628,
    -155486032,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96728",
    19861980,
    -155129014,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96729",
    21177880,
    -157120320,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96730",
    21538215,
    -157844346,
-   "HI-0.04-0.005-KAAAWA, HI"
+   "HI-0.041885-0.005235-KAAAWA, HI"
   ],
   [
    "96731",
    21678079,
    -157969207,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96732",
    20877263,
    -156460289,
-   "HI-0.04-0-KAHULUI, HI"
+   "HI-0.041885-0.005235-KAHULUI, HI"
   ],
   [
    "96734",
    21395084,
    -157758188,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96737",
    19107314,
    -155780612,
-   "HI-0.04-0.005-HAWAIIAN OCEAN VIEW, HI"
+   "HI-0.041885-0.005235-HAWAIIAN OCEAN VIEW, HI"
   ],
   [
    "96738",
    19871941,
    -155802163,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96740",
    19756820,
    -155919968,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96741",
    21955528,
    -159515192,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96742",
    21176668,
    -156965748,
-   "HI-0.04-0-KALAWAO COUNTY, HI"
+   "HI-0.041667-0-KALAWAO COUNTY, HI"
   ],
   [
    "96743",
    20026610,
    -155783672,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96744",
    21447639,
    -157828850,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96746",
    22092807,
    -159352500,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96747",
    21916529,
    -159631835,
-   "HI-0.04-0.005-KAUMAKANI, HI"
+   "HI-0.041885-0.005235-KAUMAKANI, HI"
   ],
   [
    "96748",
    21131173,
    -156835237,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96749",
    19621282,
    -154989735,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96750",
    19534274,
    -155892062,
-   "HI-0.04-0.005-KEALAKEKUA, HI"
+   "HI-0.041885-0.005235-KEALAKEKUA, HI"
   ],
   [
    "96751",
    22106680,
    -159305017,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96752",
    22116819,
    -159680753,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96753",
    20727291,
    -156440699,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96754",
    22188693,
    -159403313,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96755",
    20190590,
    -155772657,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96756",
    21904822,
    -159453084,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96757",
    21154453,
    -156977379,
-   "HI-0.04-0-KUALAPUU, HI"
+   "HI-0.041885-0.005235-KUALAPUU, HI"
   ],
   [
    "96759",
    21460185,
    -158059966,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96760",
    19552330,
    -155054810,
-   "HI-0.04-0.005-HAWAIIAN ACRES, HI"
+   "HI-0.041885-0.005235-HAWAIIAN ACRES, HI"
   ],
   [
    "96761",
    20919732,
    -156616806,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96762",
    21618531,
    -157943900,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96763",
    20836482,
    -156927377,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96764",
    19993996,
    -155247917,
-   "HI-0.04-0.005-LAUPAHOEHOE, HI"
+   "HI-0.041885-0.005235-LAUPAHOEHOE, HI"
   ],
   [
    "96765",
    21925564,
    -159499116,
-   "HI-0.04-0.005-LAWAI, HI"
+   "HI-0.041885-0.005235-LAWAI, HI"
   ],
   [
    "96766",
    22011419,
    -159405069,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96768",
    20829164,
    -156297222,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96769",
    21958619,
    -159618460,
-   "HI-0.04-0.005-KAUAI COUNTY, HI"
+   "HI-0.041885-0.005235-KAUAI COUNTY, HI"
   ],
   [
    "96770",
    21134320,
    -157210856,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96771",
    19534514,
    -155184431,
-   "HI-0.04-0.005-MOUNTAIN VIEW, HI"
+   "HI-0.041885-0.005235-MOUNTAIN VIEW, HI"
   ],
   [
    "96772",
    19065548,
    -155668201,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96773",
    19912071,
    -155276904,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96774",
    19968674,
    -155315061,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96776",
    20002196,
    -155375449,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96777",
    19227605,
    -155466558,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96778",
    19427903,
    -155089110,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96779",
    20909974,
    -156384337,
-   "HI-0.04-0-PAIA, HI"
+   "HI-0.041885-0.005235-PAIA, HI"
   ],
   [
    "96780",
    19965975,
    -155224929,
-   "HI-0.04-0.005-LAUPAHOEHOE, HI"
+   "HI-0.041885-0.005235-LAUPAHOEHOE, HI"
   ],
   [
    "96781",
    19805841,
    -155200161,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96782",
    21451242,
    -157915616,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96783",
    19843088,
    -155106084,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96785",
    19478177,
    -155230158,
-   "HI-0.04-0.005-HAWAII COUNTY, HI"
+   "HI-0.041885-0.005235-HAWAII COUNTY, HI"
   ],
   [
    "96786",
    21537569,
    -158022383,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96789",
    21483875,
    -157934284,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96790",
    20711696,
    -156294358,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96791",
    21563640,
    -158185065,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96792",
    21468625,
    -158166906,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96793",
    20895560,
    -156529838,
-   "HI-0.04-0-MAUI COUNTY, HI"
+   "HI-0.041885-0.005235-MAUI COUNTY, HI"
   ],
   [
    "96795",
    21335013,
    -157710924,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96796",
    21961892,
    -159667851,
-   "HI-0.04-0.005-WAIMEA, HI"
+   "HI-0.041885-0.005235-WAIMEA, HI"
   ],
   [
    "96797",
    21408450,
    -158017646,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96813",
    21316548,
    -157845053,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96814",
    21291214,
    -157844002,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96815",
    21272160,
    -157822286,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96816",
    21291220,
    -157790863,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96817",
    21355506,
    -157821647,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96818",
    21342518,
    -157939826,
-   "HI-0.04-0.005-HICKAM HOUSING, HI"
+   "HI-0.041885-0.005235-HICKAM HOUSING, HI"
   ],
   [
    "96819",
    21347097,
    -157877337,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96820",
    21336329,
    -157920711,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96821",
    21311172,
    -157750230,
-   "HI-0.04-0.005-EAST HONOLULU, HI"
+   "HI-0.041885-0.005235-EAST HONOLULU, HI"
   ],
   [
    "96822",
    21320468,
    -157810364,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96825",
    21292852,
    -157692266,
-   "HI-0.04-0.005-EAST HONOLULU, HI"
+   "HI-0.041885-0.005235-EAST HONOLULU, HI"
   ],
   [
    "96826",
    21291518,
    -157826869,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96848",
    21301329,
    -157814276,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96850",
    21303792,
    -157862662,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96853",
    21335083,
    -157940482,
-   "HI-0.04-0.005-HICKAM HOUSING, HI"
+   "HI-0.041885-0.005235-HICKAM HOUSING, HI"
   ],
   [
    "96857",
    21488059,
    -158053020,
-   "HI-0.04-0.005-SCHOFIELD BARRACKS, HI"
+   "HI-0.041885-0.005235-SCHOFIELD BARRACKS, HI"
   ],
   [
    "96858",
    21344563,
    -157883446,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96859",
    21360050,
    -157889776,
-   "HI-0.04-0.005-URBAN HONOLULU, HI"
+   "HI-0.041885-0.005235-URBAN HONOLULU, HI"
   ],
   [
    "96860",
    21356893,
    -157947265,
-   "HI-0.04-0.005-HONOLULU COUNTY, HI"
+   "HI-0.041885-0.005235-HONOLULU COUNTY, HI"
   ],
   [
    "96863",
    21436909,
    -157745463,
-   "HI-0.04-0.005-KANEOHE BASE, HI"
+   "HI-0.041885-0.005235-KANEOHE BASE, HI"
+  ],
+  [
+   "96910",
+   13450511,
+   144750706,
+   "GU-0-0-GUAM"
+  ],
+  [
+   "96913",
+   13478311,
+   144815058,
+   "GU-0-0-GUAM"
+  ],
+  [
+   "96915",
+   13374452,
+   144708125,
+   "GU-0-0-GUAM"
+  ],
+  [
+   "96916",
+   13265897,
+   144689161,
+   "GU-0-0-GUAM"
+  ],
+  [
+   "96917",
+   13282464,
+   144742688,
+   "GU-0-0-GUAM"
+  ],
+  [
+   "96928",
+   13355917,
+   144657305,
+   "GU-0-0-GUAM"
+  ],
+  [
+   "96929",
+   13567326,
+   144878059,
+   "GU-0-0-GUAM"
   ],
   [
    "97001",
