@@ -25,7 +25,7 @@ class FakeAdapter:
 
 @pytest.fixture(autouse=True)
 def _skip_partition(monkeypatch):
-    """F4's partition gate demands all 51 states + DC on every full build; the fakes below
+    """F4's partition gate demands all 50 states + DC + GU on every full build; the fakes below
     claim one or two states apiece and a fake census knows only a couple of ZIPs, so the
     gate is neutralised here the way `test_tx.py` lowers `MIN_DATA_ROWS`. The tests that
     exercise the gate call `check_partition` directly, or restore it explicitly."""
@@ -222,9 +222,9 @@ def test_check_partition_names_a_code_that_is_not_a_state():
 
 def test_the_registered_adapters_partition_every_state():
     """The gate's real subject: the shipped registry. sst (24) + ca + tx + il + ny + fl +
-    yaml (22) must come to exactly the 50 states + DC, each claimed once."""
+    yaml (23) must come to exactly the 50 states + DC + Guam, each claimed once."""
     adapters = build_rates._adapters()
-    assert sum(len(a.states) for a in adapters) == len(STATE_FIPS) == 51
+    assert sum(len(a.states) for a in adapters) == len(STATE_FIPS) == 52
     assert REAL_CHECK_PARTITION(adapters) is None
 
 
@@ -232,7 +232,7 @@ def test_a_full_build_runs_the_partition_gate(monkeypatch):
     monkeypatch.setattr(build_rates, "check_partition", REAL_CHECK_PARTITION)
     a = FakeAdapter("a", ("CA",),
                     [ZipRate("90012", "CA", D("0.0725"), D("0.0225"), None, "Los Angeles, CA")])
-    with pytest.raises(ValueError, match="must partition all 51 states"):
+    with pytest.raises(ValueError, match="must partition all 52 states"):
         build_rates.build(census(), date(2026, 9, 8), adapters=[a])
 
 

@@ -1,10 +1,17 @@
 state: HI
 state_rate: "0.04"
 food_drug_rate: null
-county_rates:                 # FIPS5 -> county surcharge; Maui (15009) has none
-  "15003": "0.005"            # Honolulu
-  "15001": "0.005"            # Hawaii
-  "15007": "0.005"            # Kauai
+# The GET is levied on the seller, which may pass it on at the grossed-up maximum pass-on
+# rate -- 4.712% on Oahu, which is what a Honolulu receipt actually adds. Publishing 4.5%
+# under-states it by 0.212 pt (spec §2.6, decision #67).
+pass_on: true
+county_rates:                 # FIPS5 -> county surcharge (all sunset 2030-12-31)
+  "15001": "0.005"            # Hawaii   (0.25% in 2019, 0.5% since 2020-01-01)
+  "15003": "0.005"            # Honolulu (since 2007-01-01)
+  "15007": "0.005"            # Kauai    (since 2019-01-01)
+  "15009": "0.005"            # Maui     (since 2024-01-01, Tax Announcement 2023-05)
+  # 15005 Kalawao has adopted no surcharge and must not be "fixed" into Maui's row: a fix
+  # on Kalaupapa quotes 4% grossed up to 4.1667%.
 place_rates: {}
-source: https://tax.hawaii.gov/geninfo/apx1/
-checked: 2026-09-08
+source: https://tax.hawaii.gov/geninfo/countysurcharge/
+checked: 2026-09-09

@@ -1,0 +1,22 @@
+state: GU
+state_rate: "0"
+food_drug_rate: null
+county_rates: {}
+place_rates: {}
+# One taxing authority for the whole territory, so every row and the polygon read `Guam`.
+label: Guam
+# The rectangle `pipeline/bounds/gu.py` draws, in WGS84 degrees (spec §2.2/§2.6). Guam has
+# no consumer sales tax, so a box in the ocean around the island is exact.
+bounds:
+  lat_min: 13.1
+  lat_max: 13.75
+  lon_min: 144.5
+  lon_max: 145.1
+# Guam levies a Business Privilege Tax on the seller (11 GCA 26202), not a retail sales tax
+# on the buyer: 4.5% since 2025-10-01 (P.L. 38-60), scheduled to fall to 4% on 2026-10-01.
+# It is embedded in the marked price and nothing is added at the register, so quoting it
+# would over-quote every Guam order.
+source: https://www.guamtax.com/info/structure.html
+source_rate: https://guamlegislature.gov/38th_Guam_Legislature/Public_Laws_38th/Public%20Law%2038-60.pdf
+checked: 2026-09-09
+recheck_after: 2026-10-01

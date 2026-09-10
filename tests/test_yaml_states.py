@@ -3,6 +3,7 @@ from decimal import Decimal as D
 from pathlib import Path
 
 from pipeline.census import Census
+from pipeline.model import profile_id
 from pipeline.sources import yaml_states
 
 RULES = Path("pipeline/rules/states")
@@ -28,7 +29,7 @@ def census():
 
 def test_every_yaml_loads_and_has_required_fields():
     files = sorted(RULES.glob("*.yaml"))
-    assert len(files) == 22   # 14 flat/regional + the 8 state-rate-only states (decision #26)
+    assert len(files) == 23   # 15 flat/regional (Guam included) + 8 state-rate-only (decision #26)
     for f in files:
         t = yaml_states.load_state(f)
         assert t.state == f.stem.upper() and D("0") <= t.state_rate <= D("0.08"), f
@@ -80,7 +81,7 @@ def test_labels_keep_the_census_casing():
 def test_state_fips_map_covers_all_yaml_states():
     for f in RULES.glob("*.yaml"):
         assert f.stem.upper() in yaml_states.FIPS
-    assert len(yaml_states.YamlStatesAdapter().states) == 22
+    assert len(yaml_states.YamlStatesAdapter().states) == 23
 
 
 def test_state_rate_only_states_publish_the_state_rate_and_no_local():
@@ -103,3 +104,55 @@ def test_state_rate_only_states_publish_the_state_rate_and_no_local():
     assert rows["99501"].state_rate == D("0")     # Alaska levies no state sales tax
     assert rows["99501"].local_rate == D("0")
     assert rows["99501"].food_drug_rate is None
+
+
+def test_pass_on_split_grosses_up_once_on_the_combined_rate():
+    """Hawaii's GET is on the seller; a retailer may pass it on at the grossed-up maximum
+    pass-on rate, which is what a Honolulu receipt adds (spec §2.6, decision #67). The
+    gross-up is done once on the combined rate so the two published parts sum to the
+    official figure: 0.041885 + 0.005235 = 0.047120, DoTax's own 4.712%."""
+    state, local = yaml_states.pass_on_split(D("0.04"), D("0.005"))
+    assert (state, local) == (D("0.041885"), D("0.005235"))
+    assert state + local == D("0.047120")
+    # Kalawao adopted no surcharge: 4% grossed up on its own is 4.1667%.
+    assert yaml_states.pass_on_split(D("0.04"), D("0")) == (D("0.041667"), D("0"))
+
+
+def test_hawaii_publishes_the_pass_on_rate_for_every_county_including_maui():
+    c = Census(
+        centroids={"96813": (21.31, -157.85), "96793": (20.88, -156.47),
+                   "96742": (21.19, -156.98), "96720": (19.71, -155.09)},
+        county={"96813": ("15003", "Honolulu County"), "96793": ("15009", "Maui County"),
+                "96742": ("15005", "Kalawao County"), "96720": ("15001", "Hawaii County")},
+        place={"96813": ("1571550", "Honolulu CDP"), "96793": ("1571850", "Wailuku CDP")},
+    )
+    rows = {r.zip: r for r in yaml_states.YamlStatesAdapter().rows(c, date(2026, 9, 9))}
+    assert (rows["96813"].state_rate, rows["96813"].local_rate) == (D("0.041885"), D("0.005235"))
+    # Maui adopted 0.5% on 2024-01-01; the file used to say it had none.
+    assert (rows["96793"].state_rate, rows["96793"].local_rate) == (D("0.041885"), D("0.005235"))
+    assert (rows["96742"].state_rate, rows["96742"].local_rate) == (D("0.041667"), D("0"))
+    assert rows["96720"].general_rate == D("0.047120")
+    assert rows["96813"].label == "Honolulu, HI"
+
+
+def test_guam_rows_are_zero_rated_and_all_read_guam():
+    """Spec §2.6, decision #68: one taxing authority, no consumer sales tax. The `label`
+    override makes every row read `Guam` rather than `Merizo, GU`, so one profile covers
+    the territory and the polygon carries the same label."""
+    c = Census(
+        centroids={"96910": (13.45, 144.75), "96929": (13.56, 144.87)},
+        county={"96910": ("66010", "Guam"), "96929": ("66010", "Guam")},
+        place={"96910": ("6634370", "Hagatna village")},
+    )
+    rows = {r.zip: r for r in yaml_states.YamlStatesAdapter().rows(c, date(2026, 9, 9))}
+    assert rows["96910"].state == "GU"
+    assert rows["96910"].state_rate == D("0") and rows["96910"].local_rate == D("0")
+    assert rows["96910"].label == rows["96929"].label == "Guam"
+    assert profile_id(rows["96910"]) == "GU-0-0-GUAM"
+
+
+def test_guam_yaml_carries_the_bounds_rectangle_task_6_reads():
+    t = yaml_states.load_state(RULES / "gu.yaml")
+    assert t.bounds == (13.1, 13.75, 144.5, 145.1)
+    assert t.label == "Guam" and t.pass_on is False
+    assert yaml_states.load_state(RULES / "hi.yaml").bounds is None

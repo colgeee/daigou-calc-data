@@ -39,6 +39,7 @@ states:
   HI: {grocery: general}
   DC: {grocery: exempt, alcohol: {combined: "0.1025"}}
   VA: {grocery: {combined: "0.01"}, confidence: {grocery: high}}
+  GU: {}                        # 0% at the register; every category resolves to 0 (spec §2.6)
   # ---- parsed states ----
   CA: {grocery: exempt}
   TX: {grocery: exempt, confidence: {supplement: medium}}

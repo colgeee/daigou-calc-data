@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from pipeline.census import (
+    STATE_FIPS,
     Census,
     county_short,
     display_name,
@@ -266,6 +267,33 @@ def test_display_name_fixes_mc_prefixes_and_afb_but_leaves_the_rest_to_title_cas
     assert display_name("WILKES-BARRE") == "Wilkes-Barre"
     assert display_name("PEND OREILLE") == "Pend Oreille"
     assert display_name("DE KALB") == "De Kalb"
+
+
+def test_display_name_keeps_the_dor_acronyms_upper_case():
+    """Washington's DOR names its rate areas in its own namespace (spec §2.3): `RTA` is
+    Sound Transit, `PTBA` a public transit benefit area, `TBD` a transportation benefit
+    district, `PFD` a public facilities district, `CTD` a county transportation district.
+    `.title()` turns every one of them into `Rta`, `Ptba`, ... on a bar-chart label a
+    shopper reads, so they join `AFB` as tokens kept whole."""
+    assert display_name("SEATTLE") == "Seattle"
+    assert display_name("KING COUNTY NON-RTA") == "King County Non-RTA"
+    assert display_name("AUBURN/KING RTA") == "Auburn/King RTA"
+    assert display_name("SNOHOMISH COUNTY PTBA") == "Snohomish County PTBA"
+    assert display_name("BREMERTON TBD") == "Bremerton TBD"
+    assert display_name("SPOKANE PFD") == "Spokane PFD"
+    assert display_name("CLARK COUNTY CTD") == "Clark County CTD"
+    # The existing behaviour is untouched.
+    assert display_name("MCCONNELL AFB") == "McConnell AFB"
+    assert display_name("MCKINNEY") == "McKinney"
+    assert display_name("PEND OREILLE") == "Pend Oreille"
+
+
+def test_state_fips_carries_guam():
+    """Guam is published from `gu.yaml` (spec §2.6). `STATE_FIPS` is what
+    `check_partition` and the per-state coverage gate size a state's ZIP universe with, so
+    GU has to be in it or the yaml adapter would claim a code the builder rejects."""
+    assert STATE_FIPS["GU"] == "66"
+    assert len(STATE_FIPS) == 52
 
 
 def test_census_object_from_fixture_slices():

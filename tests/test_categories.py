@@ -1,7 +1,7 @@
 from pipeline import categories
 
 ALL = ("AL AK AR AZ CA CO CT DC DE FL GA HI IA ID IL IN KS KY LA MA MD ME MI MN MO MS MT NC ND "
-       "NE NH NJ NM NV NY OH OK OR PA RI SC SD TN TX UT VA VT WA WI WV WY").split()
+       "NE NH NJ NM NV NY OH OK OR PA RI SC SD TN TX UT VA VT WA WI WV WY GU").split()
 # Streamlined member states: all 24 exempt prescription drugs (rulings on decision #22).
 SST = "AR GA IA IN KS KY MI MN NC ND NE NJ NV OH OK RI SD TN UT VT WA WI WV WY".split()
 # SST states whose food rate equals the general rate -> explicit grocery rule.
@@ -12,7 +12,7 @@ NO_GROCERY = "AR GA IA KS NC OK TN UT WV IL".split()
 
 def test_every_state_present_with_shape():
     s = categories.load()
-    assert set(s) == set(ALL) and len(ALL) == 51
+    assert set(s) == set(ALL) and len(ALL) == 52
     for code, entry in s.items():
         assert set(entry) == {"localCoverage", "rules", "confidence"}, code
         assert isinstance(entry["localCoverage"], bool)
@@ -62,3 +62,12 @@ def test_rates_in_range():
             for k in ("rate", "extra"):
                 if k in r:
                     assert Decimal("0") <= Decimal(r[k]) <= Decimal("0.15"), (code, r)
+
+
+def test_guam_is_general_everywhere_and_locally_covered():
+    """`GU: {}` takes the file's defaults. Every rule resolves to 0% because the state rate
+    is 0, and `localCoverage` stays true: Guam is not a state the app should ask the user
+    for a local rate in -- there is nothing to add (spec §2.6)."""
+    s = categories.load()
+    assert s["GU"] == {"localCoverage": True, "rules": {"prescription": {"t": "exempt"}},
+                       "confidence": {"supplement": "medium"}}

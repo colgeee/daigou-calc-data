@@ -24,6 +24,8 @@ STATE_FIPS: dict[str, str] = {
     "OH": "39", "OK": "40", "OR": "41", "PA": "42", "RI": "44", "SC": "45", "SD": "46",
     "TN": "47", "TX": "48", "UT": "49", "VT": "50", "VA": "51", "WA": "53", "WV": "54",
     "WI": "55", "WY": "56",
+    # Guam: one territory-wide taxing authority, published from `gu.yaml` (spec §2.6).
+    "GU": "66",
 }
 
 ## Census LSAD descriptor words are their own fixed casing -- almost always lowercase
@@ -121,6 +123,15 @@ def join_key(name: str) -> str:
     return re.sub(r"\s+", "", n.replace(".", ""))
 
 
+# Tokens `.title()` must not lower-case, because they are acronyms rather than words. `AFB`
+# comes from Census place names (`McConnell AFB`); the other five are Washington DOR rate-area
+# words -- Sound Transit (`RTA`), a public transit benefit area (`PTBA`), a transportation
+# benefit district (`TBD`), a public facilities district (`PFD`) and a county transportation
+# district (`CTD`) -- which reach `display_name` uppercased from the DOR's own `Name` column
+# and would otherwise read `King County Non-Rta` on the bar (spec §2.3).
+ACRONYMS = frozenset({"AFB", "RTA", "PTBA", "TBD", "PFD", "CTD"})
+
+
 def display_name(name: str) -> str:
     """Re-case a label that reaches an adapter already uppercased -- a rate file's own
     jurisdiction name, or the fallback for a ZIP the Census relationship files do not
@@ -130,14 +141,15 @@ def display_name(name: str) -> str:
     Title-cases, then fixes what `.title()` mangles:
     a leading ``Mc`` wants its next letter capitalised (``Mcintosh`` -> ``McIntosh``,
     ``Mckinney`` -> ``McKinney``, and after a hyphen too: ``Candler-Mcafee`` ->
-    ``Candler-McAfee``), and the ``Afb`` token is an acronym (``Mcconnell Afb`` ->
-    ``McConnell AFB``). ``Mac...`` words (``Macon``), apostrophes (``O'Fallon``) and
+    ``Candler-McAfee``), and an `ACRONYMS` token is kept whole (``Mcconnell Afb`` ->
+    ``McConnell AFB``, ``King County Non-Rta`` -> ``King County Non-RTA``).
+    ``Mac...`` words (``Macon``), apostrophes (``O'Fallon``) and
     multi-word names (``Pend Oreille``, ``De Kalb``) are already correct after
     `.title()` and are left alone."""
 
     def fix(token: str) -> str:
-        if token.upper() == "AFB":
-            return "AFB"
+        if token.upper() in ACRONYMS:
+            return token.upper()
         if len(token) > 2 and token[:2] == "Mc":
             return "Mc" + token[2].upper() + token[3:]
         return token
