@@ -1,0 +1,20 @@
+{
+  "type": "Topology",
+  "transform": {"scale": [1e-05, 1e-05], "translate": [0, 0]},
+  "arcs": [
+    [[0, 200000], [200000, -200000]],
+    [[200000, 0], [-200000, 0], [0, 200000]],
+    [[0, 200000], [200000, 0], [0, -200000]]
+  ],
+  "objects": {
+    "tri": {
+      "type": "GeometryCollection",
+      "geometries": [
+        {"type": "Polygon", "arcs": [[0, 1]],
+         "properties": {"id": "t:left", "source": "t", "profile": "T-0.05-0-LEFT, T"}},
+        {"type": "MultiPolygon", "arcs": [[[2, -1]]],
+         "properties": {"id": "t:right", "source": "t", "profile": "T-0.05-0-RIGHT, T"}}
+      ]
+    }
+  }
+}

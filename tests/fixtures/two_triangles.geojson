@@ -1,0 +1,6 @@
+{"type": "FeatureCollection", "features": [
+  {"type": "Feature", "properties": {"id": "t:left", "source": "t", "profile": "T-0.05-0-LEFT, T"},
+   "geometry": {"type": "Polygon", "coordinates": [[[0,2],[0,0],[2,0],[0,2]]]}},
+  {"type": "Feature", "properties": {"id": "t:right", "source": "t", "profile": "T-0.05-0-RIGHT, T"},
+   "geometry": {"type": "Polygon", "coordinates": [[[0,2],[2,0],[2,2],[0,2]]]}}
+]}
