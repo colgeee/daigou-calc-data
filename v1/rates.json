@@ -1,7 +1,7 @@
 {
  "schemaVersion": "1",
  "effectiveDate": "2026-07-01",
- "publishedAt": "2026-09-10T09:17:11Z",
+ "publishedAt": "2026-09-11T05:22:15Z",
  "profiles": {
   "MA-0.0625-0-AGAWAM TOWN, MA": {
    "state": "MA",
@@ -57970,7 +57970,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "MT": {
@@ -57984,7 +57984,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "NH": {
@@ -57998,7 +57998,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "OR": {
@@ -58012,7 +58012,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "PA": {
@@ -58026,10 +58026,13 @@
     },
     "prescription": {
      "t": "exempt"
+    },
+    "supplement": {
+     "t": "exempt"
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "MA": {
@@ -58050,7 +58053,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "CT": {
@@ -58064,10 +58067,13 @@
     },
     "prescription": {
      "t": "exempt"
+    },
+    "supplement": {
+     "t": "exempt"
     }
    },
    "confidence": {
-    "supplement": "medium",
+    "supplement": "high",
     "alcohol": "medium"
    }
   },
@@ -58080,13 +58086,16 @@
     "prescription": {
      "t": "exempt"
     },
+    "supplement": {
+     "t": "exempt"
+    },
     "alcohol": {
      "t": "combined",
      "rate": "0.09"
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "ME": {
@@ -58145,7 +58154,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "DC": {
@@ -58178,7 +58187,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium",
+    "supplement": "high",
     "grocery": "high"
    }
   },
@@ -58190,7 +58199,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "CA": {
@@ -58204,7 +58213,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "TX": {
@@ -58215,10 +58224,13 @@
     },
     "prescription": {
      "t": "exempt"
+    },
+    "supplement": {
+     "t": "exempt"
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "IL": {
@@ -58243,10 +58255,13 @@
     },
     "prescription": {
      "t": "exempt"
+    },
+    "supplement": {
+     "t": "exempt"
     }
    },
    "confidence": {
-    "supplement": "medium",
+    "supplement": "high",
     "clothing": "medium"
    }
   },
@@ -58258,10 +58273,13 @@
     },
     "prescription": {
      "t": "exempt"
+    },
+    "supplement": {
+     "t": "exempt"
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "AR": {
@@ -58283,7 +58301,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "IA": {
@@ -58421,10 +58439,13 @@
     },
     "prescription": {
      "t": "exempt"
+    },
+    "supplement": {
+     "t": "exempt"
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "NV": {
@@ -58438,7 +58459,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "OH": {
@@ -58551,7 +58572,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium"
+    "supplement": "high"
    }
   },
   "WI": {
@@ -58634,7 +58655,7 @@
     }
    },
    "confidence": {
-    "supplement": "medium",
+    "supplement": "high",
     "grocery": "medium"
    }
   },
