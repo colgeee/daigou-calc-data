@@ -12,6 +12,15 @@
 #      states with a reduced food rate -- AR GA IA KS NC OK TN UT WV -- and IL omit `grocery`
 #      so the per-ZIP food rate applies.
 # checked: 2026-09-08 (state DOR pages)
+# supplement checked: 2026-09-10 -- the 16 top daigou states were researched from statutes,
+#   regulations and DOR publications and adversarially verified (three refuters each; a ruling
+#   survived when at least two could not refute it).  The 15 that survived carry
+#   `confidence: {supplement: high}` and a trailing "supplement verified" comment naming the
+#   deciding source; Illinois is the one that did not (2 of 3 refuters).  Report:
+#   <app repo>/docs/superpowers/research/2026-09-10-supplement-rules.md
+#   DE MT NH OR GU are high without research: every category is 0 there, so the marker was never
+#   information.  Illinois stays low -- its grocery rate is not the published foodDrugRate column
+#   (that column is now IDOR's medicine rate), so no rule type in the vocabulary fits it yet.
 defaults:
   prescription: exempt          # prescription drugs are exempt in every state below unless overridden
   supplement: general
@@ -24,31 +33,31 @@ states:
   AL: {localCoverage: false, grocery: {stateReplaced: "0.03"}, confidence: {grocery: medium, supplement: low, alcohol: low}}
   AK: {localCoverage: false, grocery: general, confidence: {grocery: low, supplement: low, alcohol: low}}
   # ---- no sales tax ----
-  DE: {grocery: exempt}
-  MT: {grocery: exempt}
-  NH: {grocery: exempt}
-  OR: {grocery: exempt}
+  DE: {grocery: exempt, confidence: {supplement: high}}     # no sales tax: every category is 0
+  MT: {grocery: exempt, confidence: {supplement: high}}     # no sales tax: every category is 0
+  NH: {grocery: exempt, confidence: {supplement: high}}     # no sales tax: every category is 0
+  OR: {grocery: exempt, confidence: {supplement: high}}     # no sales tax: every category is 0
   # ---- YAML states ----
-  PA: {grocery: exempt, clothing: exempt}
-  MA: {grocery: exempt, clothing: {threshold: {limit: "175", above: general}}}
-  CT: {grocery: exempt, clothing: general, confidence: {alcohol: medium}}
-  MD: {grocery: exempt, alcohol: {combined: "0.09"}}
+  PA: {grocery: exempt, clothing: exempt, supplement: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: 55/56 Pa.B. taxable & exempt property list
+  MA: {grocery: exempt, clothing: {threshold: {limit: "175", above: general}}, confidence: {supplement: high}}  # supplement verified 2026-09-10: M.G.L. c.64H s.6(h)
+  CT: {grocery: exempt, clothing: general, supplement: exempt, confidence: {alcohol: medium, supplement: high}}  # supplement verified 2026-09-10: Conn. Gen. Stat. 12-412(120)(A)
+  MD: {grocery: exempt, alcohol: {combined: "0.09"}, supplement: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: Comptroller List of TPP III.M
   ME: {grocery: exempt}
   MS: {grocery: general, confidence: {grocery: high, supplement: medium}}
   ID: {grocery: general, confidence: {grocery: high, supplement: medium, alcohol: medium}}
-  HI: {grocery: general}
+  HI: {grocery: general, confidence: {supplement: high}}    # supplement verified 2026-09-10: HRS 237-13(2)(A), no GET food exemption (keep the statewide pass-on)
   DC: {grocery: exempt, alcohol: {combined: "0.1025"}}
-  VA: {grocery: {combined: "0.01"}, confidence: {grocery: high}}
-  GU: {}                        # 0% at the register; every category resolves to 0 (spec §2.6)
+  VA: {grocery: {combined: "0.01"}, confidence: {grocery: high, supplement: high}}  # supplement verified 2026-09-10: P.D. 15-102 (full rate, incl. the regional add-ons)
+  GU: {confidence: {supplement: high}}  # 0% at the register; every category resolves to 0 (spec §2.6)
   # ---- parsed states ----
-  CA: {grocery: exempt}
-  TX: {grocery: exempt, confidence: {supplement: medium}}
+  CA: {grocery: exempt, confidence: {supplement: high}}     # supplement verified 2026-09-10: R&TC 6359(c)(1) / Reg 1602(a)(4)
+  TX: {grocery: exempt, supplement: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: Tex. Tax Code 151.313(a)(14)+(d)(2)
   IL: {confidence: {supplement: low}}                       # grocery & Rx via foodDrugRate (1%)
-  NY: {grocery: exempt, clothing: {threshold: {limit: "110", above: general}}, confidence: {clothing: medium}}
-  FL: {grocery: exempt}
+  NY: {grocery: exempt, clothing: {threshold: {limit: "110", above: general}}, supplement: exempt, confidence: {clothing: medium, supplement: high}}  # supplement verified 2026-09-10: Tax Law 1115(a)(1)
+  FL: {grocery: exempt, supplement: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: Rule 12A-1.011(2)(a)12, F.A.C.
   # ---- SST states (Rx always explicit; grocery explicit unless a reduced food rate applies) ----
   AR: {prescription: exempt}                                # grocery via foodDrugRate
-  GA: {prescription: exempt}                                # grocery via foodDrugRate
+  GA: {prescription: exempt, confidence: {supplement: high}}  # grocery via foodDrugRate; supplement verified 2026-09-10: LR SUT-2014-18
   IA: {prescription: exempt}                                # grocery via foodDrugRate
   IN: {grocery: exempt, prescription: exempt}
   KS: {prescription: exempt}                                # grocery via foodDrugRate
@@ -58,8 +67,8 @@ states:
   NC: {prescription: exempt}                                # grocery via foodDrugRate
   ND: {grocery: exempt, prescription: exempt}
   NE: {grocery: exempt, prescription: exempt}
-  NJ: {grocery: exempt, prescription: exempt, clothing: exempt}
-  NV: {grocery: exempt, prescription: exempt}
+  NJ: {grocery: exempt, prescription: exempt, clothing: exempt, supplement: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: N.J.S.A. 54:32B-8.2(a)
+  NV: {grocery: exempt, prescription: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: NRS 372.284(2)(c) + 360B.495
   OH: {grocery: exempt, prescription: exempt}
   OK: {prescription: exempt}                                # grocery via foodDrugRate
   RI: {grocery: exempt, prescription: exempt, clothing: {threshold: {limit: "250", above: general}}}
@@ -67,12 +76,12 @@ states:
   TN: {prescription: exempt, confidence: {supplement: low}} # grocery via foodDrugRate
   UT: {prescription: exempt, confidence: {supplement: low}} # grocery via foodDrugRate
   VT: {grocery: exempt, prescription: exempt, clothing: exempt}
-  WA: {grocery: exempt, prescription: exempt}
+  WA: {grocery: exempt, prescription: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: RCW 82.08.0293
   WI: {grocery: exempt, prescription: exempt}
   WV: {prescription: exempt}                                # grocery via foodDrugRate
   WY: {grocery: exempt, prescription: exempt}
   # ---- state rate published, local rates still to come (decision #26) ----
   SC: {localCoverage: false, grocery: exempt}                 # Phase 2: flip to true when the local-rate adapter lands
   MO: {localCoverage: false, grocery: {stateReplaced: "0.01225"}, confidence: {grocery: medium}}  # Phase 2: flip to true when the local-rate adapter lands
-  AZ: {localCoverage: false, grocery: exempt, confidence: {grocery: medium}}  # Phase 2: flip to true when the local-rate adapter lands
+  AZ: {localCoverage: false, grocery: exempt, confidence: {grocery: medium, supplement: high}}  # Phase 2: flip to true when the local-rate adapter lands; supplement verified 2026-09-10: A.R.S. 42-5106(C) (city RETAIL rate, MCTC 460, never the city food rate)
   NM: {localCoverage: false, grocery: exempt, confidence: {grocery: medium}}  # Phase 2: flip to true when the local-rate adapter lands

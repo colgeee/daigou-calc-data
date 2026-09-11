@@ -24,7 +24,7 @@ def test_defaults_and_overrides():
     assert s["CA"]["rules"]["grocery"] == {"t": "exempt"}
     assert s["CA"]["rules"]["prescription"] == {"t": "exempt"}
     assert "supplement" not in s["CA"]["rules"]  # a defaulted `general` is implied by absence
-    assert s["CA"]["confidence"] == {"supplement": "medium"}
+    assert s["CA"]["confidence"] == {"supplement": "high"}
     assert s["NY"]["rules"]["clothing"] == {
         "t": "threshold", "limit": "110", "above": {"t": "general"}}
     assert s["MN"]["rules"]["alcohol"] == {"t": "surcharge", "extra": "0.025"}
@@ -55,6 +55,36 @@ def test_sst_grocery_and_prescription_are_explicit():
         assert "grocery" not in s[code]["rules"], code
 
 
+def test_supplement_rulings():
+    """The 2026-09-10 supplement promotion, per state.  Each ruling below was researched from
+    primary sources and survived three adversarial refuters; see the app repo's
+    docs/superpowers/research/2026-09-10-supplement-rules.md.  A state whose ruling is `general`
+    carries NO supplement rule: an omitted key already means the general rate, and writing an
+    explicit `general` would emit a rule the app does not need (see the CA pin above)."""
+    s = categories.load()
+    # Ruling `exempt` -- supplements are not taxed at any rate in these states.
+    for code in "NY NJ TX PA FL MD CT".split():
+        assert s[code]["rules"]["supplement"] == {"t": "exempt"}, code
+        assert s[code]["confidence"]["supplement"] == "high", code
+    # Ruling `general` -- verified taxable at the full combined rate, so no rule key.
+    for code in "CA WA MA GA VA NV HI AZ".split():
+        assert "supplement" not in s[code]["rules"], code
+        assert s[code]["confidence"]["supplement"] == "high", code
+    # No sales tax at all (+ Guam, 0% at the register, spec §2.6): every category is 0, so the
+    # unverified marker was never information.  High without research.
+    for code in "DE MT NH OR GU".split():
+        assert "supplement" not in s[code]["rules"], code
+        assert s[code]["confidence"]["supplement"] == "high", code
+    # Everything still unverified, listed explicitly so lowering or raising one is deliberate.
+    # IL is low by ruling, not by omission: supplements follow the Illinois grocery rate, which
+    # is NOT the published foodDrugRate column, and no rule type in the vocabulary can say that.
+    assert sorted(c for c, e in s.items() if e["confidence"]["supplement"] == "low") == sorted(
+        "AK AL CO IL LA TN UT".split())
+    assert sorted(c for c, e in s.items() if e["confidence"]["supplement"] == "medium") == sorted(
+        "AR DC IA ID IN KS KY ME MI MN MO MS NC ND NE NM OH OK RI SC SD VT WI WV WY".split())
+    assert {e["confidence"]["supplement"] for e in s.values()} == {"high", "medium", "low"}
+
+
 def test_rates_in_range():
     from decimal import Decimal
     for code, entry in categories.load().items():
@@ -65,9 +95,10 @@ def test_rates_in_range():
 
 
 def test_guam_is_general_everywhere_and_locally_covered():
-    """`GU: {}` takes the file's defaults. Every rule resolves to 0% because the state rate
-    is 0, and `localCoverage` stays true: Guam is not a state the app should ask the user
-    for a local rate in -- there is nothing to add (spec §2.6)."""
+    """Guam carries no rule of its own, so it takes the file's defaults. Every rule resolves to
+    0% because the state rate is 0, and `localCoverage` stays true: Guam is not a state the app
+    should ask the user for a local rate in -- there is nothing to add (spec §2.6). Its only
+    override is `supplement: high`: at 0% the unverified marker was never information."""
     s = categories.load()
     assert s["GU"] == {"localCoverage": True, "rules": {"prescription": {"t": "exempt"}},
-                       "confidence": {"supplement": "medium"}}
+                       "confidence": {"supplement": "high"}}
