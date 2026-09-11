@@ -32,11 +32,11 @@ The file is **self-contained**. Geometry is TopoJSON exactly as mapshaper writes
 quantising `transform`, shared `arcs`, and each ring a list of arc indices — and the document
 carries its **own `profiles` map** in the rates file's shape (`state`, `label`, `stateRate`,
 `localRate`, `foodDrugRate`, `groceryRate`), so a polygon never points at a rates-file profile
-that a differently-dated rates file might not have. The only thing it borrows from the rates file is
-the two-letter state code, looked up in that file's `states` block for the category rules; a
-code the loaded rates file does not know makes the polygon a miss, and the ZIP path answers
-instead. A polygon's profile id is minted the same way a ZIP row's is, so both sides of a
-jurisdiction share one id — and the build refuses to write if a shared id carries a
+that a differently-dated rates file might not have. The only thing it borrows from the rates
+file is the two-letter state code, looked up in that file's `states` block for the category
+rules; a code the loaded rates file does not know makes the polygon a miss, and the ZIP path
+answers instead. A polygon's profile id is minted the same way a ZIP row's is, so both sides
+of a jurisdiction share one id — and the build refuses to write if a shared id carries a
 different body in the two files.
 
 Where the polygons come from:

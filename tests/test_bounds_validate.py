@@ -153,12 +153,19 @@ def test_a_bad_ring_does_not_hide_a_later_bad_ring():
 
 
 def test_illinois_bounds_profiles_must_carry_a_grocery_rate():
+    """Illinois repealed its 1% state grocery tax on 2026-01-01, so `foodDrugRate` there is
+    IDOR's medicine column and a null `groceryRate` is a lost column rather than a state
+    without the concept. Ungated, a Chicago grocery quote answered off a polygon would fall
+    back to the medicine rate -- the defect this field exists to fix."""
     def m(d):
         d["profiles"]["IL-0.0625-0.04-CHICAGO, IL-FD0.01-GR0.015"]["groceryRate"] = None
     assert any("must carry a groceryRate" in e for e in errs(m))
 
 
 def test_bounds_grocery_rate_range_is_checked():
+    """The new rate earns the same `_rate` gate as every other published one -- a string, a
+    decimal, inside `MAX_RATE` -- because a misplaced decimal point in the IDOR column would
+    otherwise ship a 90% grocery rate to every phone that resolved a Chicago polygon."""
     def m(d):
         d["profiles"]["IL-0.0625-0.04-CHICAGO, IL-FD0.01-GR0.015"]["groceryRate"] = "0.9"
     assert any("groceryRate" in e and "out of range" in e for e in errs(m))

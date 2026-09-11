@@ -1,5 +1,6 @@
 from decimal import Decimal as D
 
+from pipeline.bounds import profile_entry
 from pipeline.model import ZipRate, assemble, profile_id, rate_str, rule
 
 
@@ -80,3 +81,17 @@ def test_assemble_emits_grocery_rate_on_every_profile():
     # Present-and-null, not absent: the bounds file compares a shared id's body for equality
     # against this one, so both documents must spell the same keys.
     assert doc["profiles"]["OR-0-0-PORTLAND, OR"]["groceryRate"] is None
+
+
+def test_profile_entry_emits_the_grocery_rate_in_the_bounds_copy():
+    """`profile_entry` is the overlay's own assembler and the twin of the body `assemble`
+    writes above, but no source hands it a grocery rate yet, so nothing else exercises its
+    non-null branch. A slip there -- emitting the food/drug rate under `groceryRate` -- would
+    pass every adapter's tests and first surface as a shared-id body mismatch mid-publish.
+    The two rates differ here so that slip cannot pass, and both halves of the pair are
+    asserted so the `-GR` suffix and the emitted key stay pinned together."""
+    assert profile_entry(zr(st="IL", sr="0.0625", lr="0.0425", fd="0.025", gr="0.015",
+                            label="Chicago, IL")) == (
+        "IL-0.0625-0.0425-CHICAGO, IL-FD0.025-GR0.015",
+        {"state": "IL", "label": "Chicago, IL", "stateRate": "0.0625",
+         "localRate": "0.0425", "foodDrugRate": "0.025", "groceryRate": "0.015"})
