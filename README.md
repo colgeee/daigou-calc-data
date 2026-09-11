@@ -64,8 +64,8 @@ Illinois publishes two reduced rates, from two different IDOR files. `foodDrugRa
 ordinance file's *Drug & Medical* low column — the **medicine** rate, which is what the app
 quotes prescriptions at. `groceryRate` is the grocery file's low column, a separate local tax
 of 0 % to 2.5 % that only exists because P.A. 103-0781 repealed the 1 % state grocery tax on
-2026-01-01. They were the same number until then; they are not now, and 708 of the 1 596
-jurisdictions in the grocery file are at 0 %.
+2026-01-01. They were the same number until then; they are not now, and 708 of the grocery
+file's 1 596 records are at 0 %.
 
 **Building it needs Node.** Every coordinate operation — reading shapefiles, reprojecting,
 overlaying, simplifying, writing TopoJSON — is done by
@@ -178,6 +178,7 @@ outside every polygon.
 - California polygons (CDTFA tax-rate areas, GeoJSON export of the same item): <https://gis.data.ca.gov/api/download/v1/items/01883a79765a4afba132ba54da408d8b/geojson?layers=1>
 - Texas: <https://comptroller.texas.gov/data/edi/sales-tax/taxrates.txt>
 - Illinois: <https://tax.illinois.gov/content/dam/soi/en/web/tax/research/taxrates/documents/salestaxrates/ordmache-current.txt>
+- Illinois groceries (the separate grocery-tax file, parsed for `groceryRate`): <https://tax.illinois.gov/content/dam/soi/en/web/tax/research/taxrates/documents/salestaxrates/grocerymache-current.txt>
 - New York: <https://www.tax.ny.gov/pdf/publications/sales/pub718.pdf>
 - Florida: <https://floridarevenue.com/Forms_library/current/dr15dss.pdf>
 - Virginia: <https://www.tax.virginia.gov/retail-sales-and-use-tax>

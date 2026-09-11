@@ -77,13 +77,16 @@ def test_supplement_rulings():
         assert s[code]["confidence"]["supplement"] == "high", code
     # Illinois: supplements with no medicinal claim on the label are groceries (IDOR PIO-115
     # grocery item 9, PIO-101 R-01/26 row 1011), and the grocery rate is per jurisdiction, so
-    # the rule points at the profile's own `groceryRate` (decision #92).
+    # the rule points at the profile's own `groceryRate`
+    # (decision #92 `illinois-grocery-rule-stays-implicit`).  Writing the supplement rule out is
+    # safe under decision #5 -- an app build older than the groceryRate ladder reads the unknown
+    # type as the general rate, which is already where IL supplement resolves, so nothing moves.
     assert s["IL"]["rules"]["supplement"] == {"t": "groceryRate"}
     assert s["IL"]["confidence"]["supplement"] == "high"
-    # Illinois grocery stays implicit: an app build older than the groceryRate ladder reads an
-    # unknown rule type as the general rate (decision #5), and an explicit rule would move
-    # Chicago groceries from 2.5% to 10.25% on every already-installed phone.  Prescription
-    # stays implicit too -- it reads `foodDrugRate`, which is exactly the medicine rate.
+    # Illinois grocery stays implicit because that same fallback is wrong there: an explicit rule
+    # would move Chicago groceries from the 2.5% medicine rate the old build quotes today to
+    # 10.25% on every already-installed phone.  Prescription stays implicit too -- it reads
+    # `foodDrugRate`, which for Rx is exactly the right column.
     assert "grocery" not in s["IL"]["rules"]
     assert "prescription" not in s["IL"]["rules"]
     # Everything still unverified, listed explicitly so lowering or raising one is deliberate.
