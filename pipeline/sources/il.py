@@ -280,8 +280,10 @@ class IlAdapter:
 
     def jurisdictions(self, census: Census, on: date) -> dict[JurisdictionKey, ZipRate]:
         """The same table `rows` prices ZIPs from, keyed by geography instead. Every record
-        carries the jurisdiction's own food/drug rate, so a Chicago grocery quote off a
-        polygon is the 1% Illinois publishes rather than the general rate.
+        carries the jurisdiction's own food/drug rate, so a polygon quotes Illinois' reduced
+        medicine rate rather than the general one, and the grocery rate rides along on the
+        same key, so a Chicago grocery quote off a polygon is the 1.5% IDOR publishes for
+        groceries rather than that 2.5% medicine rate.
 
         Every place is crossed with **every** county of the state, not only the counties
         `geoid_index` happened to observe for it. The index is reversed out of the ZCTA
@@ -294,23 +296,31 @@ class IlAdapter:
         physically reach that county is inert -- the overlay emits no piece to look it up
         with, and the county's remainder answers instead (spec §2.3)."""
         table = {(join_key(r.name), join_key(r.county)): r for r in parse(_fetch_text())}
+        grocery = {(join_key(r.name), join_key(r.county)): r
+                   for r in parse_grocery(_fetch_grocery_text())}
         counties, places = geoid_index(census, "17")
         out: dict[JurisdictionKey, ZipRate] = {}
         for county_key, (county_geoid, county_label) in counties.items():
-            row = table.get((join_key(f"{county_key} COUNTY"), county_key))
+            key = (join_key(f"{county_key} COUNTY"), county_key)
+            row = table.get(key)
             if row is None:
                 continue
             gm, dm, _covered = row.rates(on)
-            out[county_geoid] = ZipRate("", "IL", STATE_RATE, _local(row, gm), dm,
-                                        f"{county_label}, IL")
+            g = grocery.get(key)
+            out[county_geoid] = ZipRate(
+                "", "IL", STATE_RATE, _local(row, gm), dm, f"{county_label}, IL",
+                None if g is None else g.rate(on)[0])
         for place_geoid, (place_key, name) in wanted_places(places).items():
             for county_key, (county_geoid, _label) in counties.items():
-                row = table.get((place_key, county_key))
+                key = (place_key, county_key)
+                row = table.get(key)
                 if row is None:
                     continue      # unincorporated, taxed by address, or not in this county
                 gm, dm, _covered = row.rates(on)
+                g = grocery.get(key)
                 out[(place_geoid, county_geoid)] = ZipRate(
-                    "", "IL", STATE_RATE, _local(row, gm), dm, f"{name}, IL")
+                    "", "IL", STATE_RATE, _local(row, gm), dm, f"{name}, IL",
+                    None if g is None else g.rate(on)[0])
         return out
 
     def rows(self, census: Census, on: date) -> Iterable[ZipRate]:
@@ -321,23 +331,32 @@ class IlAdapter:
         # last. `join_key` folds the spellings the two sources disagree on (Census
         # `ST. CLAIR` vs the file's `SAINT CLAIR COUNTY`, `LA SALLE` vs `LASALLE`).
         by_name_county = {(join_key(r.name), join_key(r.county)): r for r in parse(_fetch_text())}
-        matched = fell_back = no_row = uncovered = 0
+        # The grocery tax is a separate levy on a separate file (spec §3.5, decision #90): the
+        # ordinance file's Drug & Medical column stopped being the grocery rate when P.A.
+        # 103-0781 repealed the 1% state grocery tax on 2026-01-01. Keyed identically, so the
+        # rate is read for whichever jurisdiction the general rate resolved to.
+        grocery = {(join_key(r.name), join_key(r.county)): r
+                   for r in parse_grocery(_fetch_grocery_text())}
+        matched = fell_back = no_row = uncovered = no_grocery = 0
         for zip5 in census.zips_in_state("17"):
             if zip5 not in census.centroids:
                 continue
             county = census.county_name(zip5) or ""
             county_key = join_key(county)
             place = census.place_name(zip5)
-            row = by_name_county.get((join_key(place), county_key)) if place else None
+            place_key = (join_key(place), county_key) if place else None
+            row = by_name_county.get(place_key) if place_key else None
             if row is not None:
                 matched += 1
+                key = place_key
                 # The Census's own casing is the label (C1): `DeKalb`, `O'Fallon`.
                 label = f"{census.place_display(zip5) or display_name(place)}, IL"
             else:
                 # Unincorporated territory, a municipality IDOR taxes by address, or a
                 # Census place under a name IDOR does not file: the ZIP pays its county's
                 # rate. A county filing no readable row leaves nothing to publish.
-                row = by_name_county.get((join_key(f"{county} COUNTY"), county_key))
+                key = (join_key(f"{county} COUNTY"), county_key)
+                row = by_name_county.get(key)
                 if row is None:
                     no_row += 1
                     continue
@@ -350,12 +369,29 @@ class IlAdapter:
             # which applies, so a build dated back before a rate change publishes the
             # rate that was actually in force then.
             gm, dm, covered = row.rates(on)
-            if not covered:
+            # `key` and not the place: the ZIP is priced as one jurisdiction, so its grocery
+            # rate is the one belonging to whichever jurisdiction its general rate came from.
+            # Reading the municipality's own grocery row for a ZIP that fell back to its
+            # county would move 60 of the state's ~1 400 ZIPs one point, and would make the
+            # GPS overlay -- which draws no polygon for a municipality the ordinance file
+            # zeroes -- answer differently from the ZIP for the same address (decision #91).
+            g_row = grocery.get(key)
+            grocery_rate = None
+            g_covered = True
+            if g_row is None:
+                no_grocery += 1
+            else:
+                grocery_rate, g_covered = g_row.rate(on)
+            # One counter across both files, so the note's count never exceeds the ZIPs it
+            # claims to be about: a ZIP whose two records both miss `on` is one ZIP that took
+            # a current-period rate, not two.
+            if not (covered and g_covered):
                 uncovered += 1
-            # Illinois taxes qualifying food, drugs and medical appliances at a separate
-            # reduced rate, so `food_drug_rate` is always published, never collapsed to
-            # None the way an SST state's equal-to-general rate is.
-            yield ZipRate(zip5, "IL", STATE_RATE, _local(row, gm), dm, label)
+            # Illinois taxes qualifying drugs and medical appliances at a separate reduced
+            # rate, so `food_drug_rate` is always published, never collapsed to None the way
+            # an SST state's equal-to-general rate is. Since 2026-01-01 that is the medicine
+            # rate only; groceries read `grocery_rate`.
+            yield ZipRate(zip5, "IL", STATE_RATE, _local(row, gm), dm, label, grocery_rate)
         note = ""
         if uncovered:
             zips = "ZIP" if uncovered == 1 else "ZIPs"
@@ -363,9 +399,13 @@ class IlAdapter:
                 f" ({uncovered} {zips} took the current period's rate because neither "
                 f"period the record carries covers {on})"
             )
+        # Appended only when it happened, exactly as the note is: `test_il.py` pins this
+        # line's tail on a clean build, and "0 with no grocery row" is noise either way.
+        missing = f", {no_grocery} with no grocery row" if no_grocery else ""
         print(
             f"[il] {matched} ZIPs matched a municipality, {fell_back} fell back to their "
-            f"county's rate, {no_row} dropped with no municipality or county row{note}"
+            f"county's rate, {no_row} dropped with no municipality or county row"
+            f"{missing}{note}"
         )
 
 

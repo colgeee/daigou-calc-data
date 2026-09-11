@@ -388,10 +388,14 @@ def _grocery_file(monkeypatch):
     test that asserts a floor re-patches the one it asserts -- same `monkeypatch` instance,
     later call wins -- and must set it explicitly rather than inheriting it from here.
 
-    Task 3 adds the `_fetch_grocery_text` patch to this fixture, once that attribute exists."""
+    The fetch is patched here for the whole module too, because `IlAdapter.rows` now reads two
+    IDOR files: the eleven tests above patch only `_fetch_text`, and without this line each of
+    them would pull the live grocery file over the network. A test that cares which grocery
+    records it sees re-patches this the same way it re-patches a floor."""
     monkeypatch.setattr(il, "MIN_GROCERY_ROWS", 1)
     monkeypatch.setattr(il, "MIN_GROCERY_COUNTY_ROWS", 0)
     monkeypatch.setattr(il, "MIN_NONZERO_GROCERY_ROWS", 0)
+    monkeypatch.setattr(il, "_fetch_grocery_text", lambda: G_LIVE)
 
 
 def test_parse_grocery_reads_the_live_columns():
@@ -508,3 +512,75 @@ def test_the_grocery_ceiling_sits_exactly_at_max_grocery_rate():
         il.parse_grocery(_grocery_low("05001"))
     (row,) = il.parse_grocery(_grocery_low("05000"))
     assert row.rate(date(2026, 9, 11)) == (D("0.05"), True)
+
+
+def test_rows_publish_the_grocery_rate_for_the_matched_municipality(monkeypatch):
+    census = _chicago_census()
+    monkeypatch.setattr(il, "_fetch_text", lambda: LIVE_CHICAGO_COOK)
+    monkeypatch.setattr(il, "_fetch_grocery_text", lambda: LIVE_G_CHICAGO_COOK)
+    monkeypatch.setattr(il, "MIN_DATA_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_COUNTY_ROWS", 0)
+    (row,) = il.IlAdapter().rows(census, date(2026, 9, 11))
+    # The two columns are different taxes and both are published: grocery at 1.5%, and the
+    # Drug & Medical low at 2.5%, which is the medicine rate Illinois prescriptions need.
+    assert row.grocery_rate == D("0.015")
+    assert row.food_drug_rate == D("0.025")
+
+
+def test_rows_read_the_grocery_rate_for_the_jurisdiction_the_general_rate_resolved_to(
+        monkeypatch):
+    """Decision: one jurisdiction per ZIP (spec D-4). IDOR taxes Springfield by address, so
+    the ordinance file zeroes its row and the ZIP is already priced at Sangamon County's
+    general rate -- the grocery rate must come from the same county row, not from
+    Springfield's own grocery row, or the GPS overlay (which draws no Springfield polygon)
+    would answer differently for the same address."""
+    census = Census(
+        centroids={"62701": (39.7990, -89.6439)},
+        county={"62701": ("17167", "Sangamon County")},
+        place={"62701": ("1772000", "Springfield city")},
+    )
+    monkeypatch.setattr(il, "_fetch_text",
+                        lambda: "\n".join([LIVE_SPRINGFIELD, LIVE_SANGAMON_COUNTY]))
+    monkeypatch.setattr(il, "_fetch_grocery_text", lambda: "\n".join([
+        # Springfield's own grocery row says 1%, and it is deliberately NOT the one read.
+        LIVE_G_SANGAMON_COUNTY,
+        '084-0001-6SPRINGFIELD              SANGAMON                 '
+        '202601010100001000N19900101202512310000000000N',
+    ]))
+    monkeypatch.setattr(il, "MIN_DATA_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_COUNTY_ROWS", 0)
+    (row,) = il.IlAdapter().rows(census, date(2026, 9, 11))
+    assert row.label == "Sangamon County, IL"
+    assert row.grocery_rate == D("0")
+
+
+def test_rows_publish_no_grocery_rate_and_count_a_jurisdiction_the_file_omits(
+        monkeypatch, capsys):
+    """A municipality the ordinance file prices but the grocery file does not: publish None
+    and say so. The publish gate in `pipeline/validate.py` then refuses the build, which is
+    the right level for that failure -- one missing row must be loud, not silently quoted at
+    the medicine rate."""
+    census = _chicago_census()
+    monkeypatch.setattr(il, "_fetch_text", lambda: LIVE_CHICAGO_COOK)
+    monkeypatch.setattr(il, "_fetch_grocery_text", lambda: LIVE_G_CHAMPAIGN)
+    monkeypatch.setattr(il, "MIN_DATA_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_COUNTY_ROWS", 0)
+    (row,) = il.IlAdapter().rows(census, date(2026, 9, 11))
+    assert row.grocery_rate is None
+    assert "1 with no grocery row" in capsys.readouterr().out
+
+
+def test_jurisdictions_carry_the_grocery_rate(monkeypatch):
+    census = _chicago_census()
+    monkeypatch.setattr(il, "_fetch_text",
+                        lambda: "\n".join([LIVE_CHICAGO_COOK, LIVE_COOK_COUNTY]))
+    monkeypatch.setattr(il, "_fetch_grocery_text",
+                        lambda: "\n".join([LIVE_G_CHICAGO_COOK, LIVE_G_COOK_COUNTY]))
+    monkeypatch.setattr(il, "MIN_DATA_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_COUNTY_ROWS", 0)
+    out = il.IlAdapter().jurisdictions(census, date(2026, 9, 11))
+    # Keyed by county GEOID5 for the county remainder, (place GEOID7, county GEOID5) for a
+    # municipality -- both must carry the rate, or a GPS quote inside a polygon disagrees
+    # with the ZIP that covers the same block.
+    assert out["17031"].grocery_rate == D("0.015")
+    assert out[("1714000", "17031")].grocery_rate == D("0.015")

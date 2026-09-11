@@ -36,6 +36,41 @@ IL_STRADDLE_FIXTURE = "\n".join([
     rec("022-0100-1", "ADDISON", "DUPAGE", "N", "20260801", "08000", "01000", "08000", "01000"),
 ])
 
+
+def g_rec(loc, name, county, eff, hi, lo, rflag="N"):
+    """One 106-character record of IDOR's separate grocery file (guide IDR-1028): id, name,
+    county, the current period's start date and that period's single high/low rate group,
+    then a long-closed prior period at 0%."""
+    return (loc.ljust(10) + name.ljust(25) + county.ljust(25) + eff + hi + lo + rflag
+            + "19900101" + "20251231" + "00000" + "00000" + rflag)
+
+
+# The grocery table for both fixtures above. Chicago's two sides carry different grocery rates
+# for the reason they carry different general ones -- IDOR files the straddler once per county
+# -- so a profile id proves the polygon read the grocery row for its own county, not whichever
+# was read last.
+IL_GROCERY = "\n".join([
+    g_rec("016-0001-1", "CHICAGO", "COOK", "20260801", "01500", "01500"),
+    g_rec("016-5000-1", "COOK COUNTY", "COOK", "20260801", "01500", "01500"),
+    g_rec("016-0002-1", "CHICAGO", "DUPAGE", "20260801", "01000", "01000"),
+    g_rec("022-5000-1", "DUPAGE COUNTY", "DUPAGE", "20260801", "01000", "01000"),
+    g_rec("022-0100-1", "ADDISON", "DUPAGE", "20260801", "01000", "01000"),
+])
+
+
+@pytest.fixture
+def _il_grocery(monkeypatch):
+    """`IlAdapter` reads two IDOR files, so an Illinois test that patches only `_fetch_text`
+    pulls the live grocery file over the network and prices a synthetic rate table against
+    real rates. Requested by name rather than autouse: only the Illinois tests below need it,
+    and the grocery floors come down with it because these fixtures are five records, not
+    1 200."""
+    monkeypatch.setattr(il, "_fetch_grocery_text", lambda: IL_GROCERY)
+    monkeypatch.setattr(il, "MIN_GROCERY_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_GROCERY_COUNTY_ROWS", 0)
+    monkeypatch.setattr(il, "MIN_NONZERO_GROCERY_ROWS", 0)
+
+
 NY_FIXTURE_LINES = [
     "New York City 8\u215e 8081",
     "Westchester - except 8\u215c 6011",
@@ -113,10 +148,10 @@ def test_geoid_index_reverses_the_relationship_files_for_one_state():
     assert places[("ADDISON", "DUPAGE")] == ("1700685", "17043", "Addison")
 
 
-def test_illinois_jurisdictions_match_the_zip_rows_profile_id(monkeypatch):
+def test_illinois_jurisdictions_match_the_zip_rows_profile_id(monkeypatch, _il_grocery):
     """The whole point of `jurisdictions`: a Chicago polygon and a Chicago ZIP row mint the
-    same profile id, so the bounds file and the rates file agree on the label and the two
-    rates, food/drug rate included (spec §2.3)."""
+    same profile id, so the bounds file and the rates file agree on the label and all three
+    rates, food/drug and grocery included (spec §2.3)."""
     monkeypatch.setattr(il, "_fetch_text", lambda: IL_FIXTURE)
     monkeypatch.setattr(il, "MIN_DATA_ROWS", 1)
     monkeypatch.setattr(il, "MIN_COUNTY_ROWS", 1)
@@ -125,15 +160,17 @@ def test_illinois_jurisdictions_match_the_zip_rows_profile_id(monkeypatch):
     juris = il.IlAdapter().jurisdictions(c, ON)
     chicago = juris[("1714000", "17031")]
     assert profile_id(chicago) == profile_id(zip_rows["60601"])
-    assert profile_id(chicago) == "IL-0.0625-0.04-CHICAGO, IL-FD0.01"
+    assert profile_id(chicago) == "IL-0.0625-0.04-CHICAGO, IL-FD0.01-GR0.015"
     assert chicago.food_drug_rate == D("0.01")
+    # The two are separate taxes on the same polygon: 1% on medicine, 1.5% on groceries.
+    assert chicago.grocery_rate == D("0.015")
     cook = juris["17031"]
-    assert profile_id(cook) == "IL-0.0625-0.0375-COOK COUNTY, IL-FD0.01"
+    assert profile_id(cook) == "IL-0.0625-0.0375-COOK COUNTY, IL-FD0.01-GR0.015"
     assert il.IlAdapter().bounds_states == ("IL",)
 
 
 def test_a_straddling_illinois_municipality_is_priced_in_every_county_idor_files_it_in(
-        monkeypatch):
+        monkeypatch, _il_grocery):
     """`geoid_index` learns a (place, county) pair only where a ZCTA in that county named
     that place as its dominant one, which is where ZIP centres of mass fell, not where the
     municipality reaches. Keying off those pairs alone priced Chicago in Cook and left its
@@ -143,13 +180,15 @@ def test_a_straddling_illinois_municipality_is_priced_in_every_county_idor_files
     monkeypatch.setattr(il, "MIN_DATA_ROWS", 1)
     monkeypatch.setattr(il, "MIN_COUNTY_ROWS", 1)
     j = il.IlAdapter().jurisdictions(il_census(), ON)
-    # Chicago on both sides, each at its own county's combined rate, not Cook's twice.
-    assert profile_id(j[("1714000", "17031")]) == "IL-0.0625-0.04-CHICAGO, IL-FD0.01"
-    assert profile_id(j[("1714000", "17043")]) == "IL-0.0625-0.0225-CHICAGO, IL-FD0.01"
+    # Chicago on both sides, each at its own county's combined rate, not Cook's twice -- and
+    # at its own county's grocery rate, which the two ids differ on as well.
+    assert profile_id(j[("1714000", "17031")]) == "IL-0.0625-0.04-CHICAGO, IL-FD0.01-GR0.015"
+    assert profile_id(j[("1714000", "17043")]) == "IL-0.0625-0.0225-CHICAGO, IL-FD0.01-GR0.01"
     assert j[("1714000", "17043")].label == "Chicago, IL"
 
 
-def test_an_illinois_place_idor_files_in_one_county_only_gets_exactly_one_record(monkeypatch):
+def test_an_illinois_place_idor_files_in_one_county_only_gets_exactly_one_record(
+        monkeypatch, _il_grocery):
     """The cross is inert where the state files no row: Addison is a DuPage municipality and
     IDOR files it there and nowhere else, so it gets one record and Cook's remainder is
     untouched. A pairing with no row emits no rated piece and the county answers."""
@@ -159,7 +198,7 @@ def test_an_illinois_place_idor_files_in_one_county_only_gets_exactly_one_record
     j = il.IlAdapter().jurisdictions(il_census(), ON)
     assert [k for k in j if isinstance(k, tuple) and k[0] == "1700685"] \
         == [("1700685", "17043")]
-    assert profile_id(j[("1700685", "17043")]) == "IL-0.0625-0.0175-ADDISON, IL-FD0.01"
+    assert profile_id(j[("1700685", "17043")]) == "IL-0.0625-0.0175-ADDISON, IL-FD0.01-GR0.01"
 
 
 def test_a_straddling_new_york_city_is_priced_in_every_county_pub_718_files_it_in(monkeypatch):
