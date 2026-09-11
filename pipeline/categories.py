@@ -12,9 +12,10 @@ PATH = Path(__file__).resolve().parent / "rules" / "categories.yaml"
 # States where an omitted grocery/prescription falls back to the per-ZIP food/drug rate instead of
 # the general rate (app decision #22).  An explicit rule in the YAML always wins over that rate.
 # IL is half an exception: its omitted `prescription` does take that rate (IDOR's Drug & Medical
-# column IS Illinois' medicine rate), but its omitted `grocery` takes it only until the app's
-# resolver ladder lands -- via foodDrugRate today, via the per-ZIP `groceryRate` after that,
-# which is why no explicit rule is written for it (rules/categories.yaml note 1; app decision #92).
+# column IS Illinois' medicine rate), but its omitted `grocery` takes it only on app builds older
+# than the 2026-09-11 resolver ladder -- newer builds read the per-ZIP `groceryRate` instead.  The
+# omission is the mechanism, not an oversight: an explicit `grocery: groceryRate` rule would put
+# those older builds on the general rate (rules/categories.yaml note 1; app decision #92).
 SST_LIKE = {"AR", "GA", "IA", "IN", "KS", "KY", "MI", "MN", "NC", "ND", "NE", "NJ", "NV", "OH",
             "OK", "RI", "SD", "TN", "UT", "VT", "WA", "WI", "WV", "WY", "IL"}
 CATS = ("grocery", "clothing", "prescription", "supplement", "alcohol")

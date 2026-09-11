@@ -1,7 +1,8 @@
 # Category treatment per state. Keys: grocery, clothing, prescription, supplement, alcohol.
 # Omitted key = general rate, except for grocery/prescription in the states that publish a
 # per-ZIP food/drug rate, where that per-ZIP rate applies -- and except IL's grocery, which
-# takes the per-ZIP `groceryRate` instead once the app's resolver ladder lands (note 1).
+# takes the per-ZIP `groceryRate` instead on app builds carrying the 2026-09-11 resolver
+# ladder, and the food/drug rate on builds older than it (note 1).
 # An explicit rule here always wins; the per-ZIP food/drug rate is only the fallback when this
 # file is silent (app decision #22).  Hence:
 #   1. every Streamlined (SST) member state states `prescription: exempt` explicitly -- all 24
@@ -18,7 +19,8 @@
 #      carry an explicit grocery rule (`exempt`, or `general` for South Dakota).  The nine SST
 #      states with a reduced food rate -- AR GA IA KS NC OK TN UT WV -- and IL omit `grocery`;
 #      for the nine the per-ZIP food rate applies, and for IL the per-ZIP `groceryRate` does
-#      once the app's resolver ladder lands -- see note 1.
+#      on app builds carrying the 2026-09-11 resolver ladder -- older builds read the food/drug
+#      rate there, which is what leaving the rule out is for; see note 1.
 # checked: 2026-09-08 (state DOR pages)
 # supplement checked: 2026-09-10 -- the 16 top daigou states were researched from statutes,
 #   regulations and DOR publications and adversarially verified (three refuters each; a ruling
@@ -69,7 +71,7 @@ states:
   # one supplement category and cannot ask what is in the bottle, so this is recorded as an edge
   # case, not modelled -- as FL's candy-labelled products are (decision #93
   # `illinois-supplements-verified`).
-  IL: {supplement: groceryRate, confidence: {supplement: high}}  # grocery via foodDrugRate today, via the per-ZIP groceryRate once the resolver ladder lands (note 1); Rx via foodDrugRate (the medicine rate) in both; supplement verified 2026-09-10, promoted 2026-09-11: PIO-115 grocery item 9 + PIO-101 R-01/26 row 1011
+  IL: {supplement: groceryRate, confidence: {supplement: high}}  # grocery via foodDrugRate on app builds older than the 2026-09-11 resolver ladder, via the per-ZIP groceryRate on newer ones (note 1); Rx via foodDrugRate (the medicine rate) in both; supplement verified 2026-09-10, promoted 2026-09-11: PIO-115 grocery item 9 + PIO-101 R-01/26 row 1011
   NY: {grocery: exempt, clothing: {threshold: {limit: "110", above: general}}, supplement: exempt, confidence: {clothing: medium, supplement: high}}  # supplement verified 2026-09-10: Tax Law 1115(a)(1)
   FL: {grocery: exempt, supplement: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: Rule 12A-1.011(2)(a)12, F.A.C.
   # ---- SST states (Rx always explicit; grocery explicit unless a reduced food rate applies) ----
