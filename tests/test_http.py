@@ -2,6 +2,13 @@ import pytest
 
 from pipeline import http
 
+# Every test below fakes `requests.get` and then calls the real `get_cached`/`get_polled`:
+# this file is the fetch machinery's own test, so `tests/conftest.py`'s guard -- which would
+# otherwise replace both helpers with a failure -- stands aside for the whole module. Marked
+# per-module rather than per-test because that is the property of the file, and a test added
+# here later should inherit it rather than fail for the wrong reason.
+pytestmark = pytest.mark.no_network_guard
+
 # Over `MIN_BODY_BYTES`, so it is a body worth caching rather than a failed attempt.
 BODY = b"hello world " * 64
 

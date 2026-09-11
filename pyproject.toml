@@ -12,3 +12,9 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `--strict-markers` so a typo'd `no_network_guard` is a collection error naming the marker
+# rather than a marker that silently does nothing.
+addopts = "--strict-markers"
+markers = [
+  "no_network_guard: this test drives the fetch machinery itself, so tests/conftest.py's unpatched-network guard stands aside for it",
+]
