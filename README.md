@@ -52,13 +52,20 @@ Where the polygons come from:
 | GU | a hand-written bounding box in `pipeline/rules/states/gu.yaml` | territory — one taxing authority, so a rectangle is exact |
 
 `python -m pipeline bounds` **validates before it writes**: every polygon's profile must
-exist, every rate must sit in [0, 0.15], every Illinois profile must carry a food/drug rate,
-every polygon must have at least one ring, every arc index must be in range and every ring
-closed, a profile id shared with the rates file must carry the same body there, the number of
-features handed to the merge must equal the number of polygons that come back out of it,
-per-source polygon counts must clear their floors, the `effectiveDate` must equal the rates
-file's, and the gzipped file must be **at most 1.5 MB** (the current build is ~620 KB). Any
-failure prints *REFUSING TO WRITE*, exits 1, and `publish.sh` never runs.
+exist, every rate must sit in [0, 0.15], every Illinois profile must carry a food/drug rate
+**and a grocery rate**, every polygon must have at least one ring, every arc index must be in
+range and every ring closed, a profile id shared with the rates file must carry the same body
+there, the number of features handed to the merge must equal the number of polygons that come
+back out of it, per-source polygon counts must clear their floors, the `effectiveDate` must
+equal the rates file's, and the gzipped file must be **at most 1.5 MB** (the current build is
+~620 KB). Any failure prints *REFUSING TO WRITE*, exits 1, and `publish.sh` never runs.
+
+Illinois publishes two reduced rates, from two different IDOR files. `foodDrugRate` is the
+ordinance file's *Drug & Medical* low column — the **medicine** rate, which is what the app
+quotes prescriptions at. `groceryRate` is the grocery file's low column, a separate local tax
+of 0 % to 2.5 % that only exists because P.A. 103-0781 repealed the 1 % state grocery tax on
+2026-01-01. They were the same number until then; they are not now, and 708 of the 1 596
+jurisdictions in the grocery file are at 0 %.
 
 **Building it needs Node.** Every coordinate operation — reading shapefiles, reprojecting,
 overlaying, simplifying, writing TopoJSON — is done by

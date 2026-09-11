@@ -75,11 +75,20 @@ def test_supplement_rulings():
     for code in "DE MT NH OR GU".split():
         assert "supplement" not in s[code]["rules"], code
         assert s[code]["confidence"]["supplement"] == "high", code
+    # Illinois: supplements with no medicinal claim on the label are groceries (IDOR PIO-115
+    # grocery item 9, PIO-101 R-01/26 row 1011), and the grocery rate is per jurisdiction, so
+    # the rule points at the profile's own `groceryRate` (decision #92).
+    assert s["IL"]["rules"]["supplement"] == {"t": "groceryRate"}
+    assert s["IL"]["confidence"]["supplement"] == "high"
+    # Illinois grocery stays implicit: an app build older than the groceryRate ladder reads an
+    # unknown rule type as the general rate (decision #5), and an explicit rule would move
+    # Chicago groceries from 2.5% to 10.25% on every already-installed phone.  Prescription
+    # stays implicit too -- it reads `foodDrugRate`, which is exactly the medicine rate.
+    assert "grocery" not in s["IL"]["rules"]
+    assert "prescription" not in s["IL"]["rules"]
     # Everything still unverified, listed explicitly so lowering or raising one is deliberate.
-    # IL is low by ruling, not by omission: supplements follow the Illinois grocery rate, which
-    # is NOT the published foodDrugRate column, and no rule type in the vocabulary can say that.
     assert sorted(c for c, e in s.items() if e["confidence"]["supplement"] == "low") == sorted(
-        "AK AL CO IL LA TN UT".split())
+        "AK AL CO LA TN UT".split())
     assert sorted(c for c, e in s.items() if e["confidence"]["supplement"] == "medium") == sorted(
         "AR DC IA ID IN KS KY ME MI MN MO MS NC ND NE NM OH OK RI SC SD VT WI WV WY".split())
     assert {e["confidence"]["supplement"] for e in s.values()} == {"high", "medium", "low"}

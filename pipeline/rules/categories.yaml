@@ -7,6 +7,9 @@
 #      exempt prescription drugs, so the SST "food/drug" column must never be applied to Rx.
 #      Illinois is the one exception: it taxes Rx at its reduced 1% rate, which is exactly the
 #      per-ZIP food/drug rate, so IL omits `prescription`.
+#      Illinois omits `grocery` as well, but for a different reason: its grocery rate is the
+#      per-ZIP `groceryRate`, and writing an explicit rule for it would break older app builds,
+#      which read an unknown rule type as the general rate (app decision #5).
 #   2. SST states whose food rate equals their general rate publish no foodDrugRate, so they
 #      carry an explicit grocery rule (`exempt`, or `general` for South Dakota).  The nine SST
 #      states with a reduced food rate -- AR GA IA KS NC OK TN UT WV -- and IL omit `grocery`
@@ -16,11 +19,15 @@
 #   regulations and DOR publications and adversarially verified (three refuters each; a ruling
 #   survived when at least two could not refute it).  The 15 that survived carry
 #   `confidence: {supplement: high}` and a trailing "supplement verified" comment naming the
-#   deciding source; Illinois is the one that did not (2 of 3 refuters).  Report:
+#   deciding source; Illinois was the sixteenth and did not survive that pass (2 of 3 refuters),
+#   refuted only because the rule could not be written down, not because it was wrong.  Report:
 #   <app repo>/docs/superpowers/research/2026-09-10-supplement-rules.md
 #   DE MT NH OR GU are high without research: every category is 0 there, so the marker was never
-#   information.  Illinois stays low -- its grocery rate is not the published foodDrugRate column
-#   (that column is now IDOR's medicine rate), so no rule type in the vocabulary fits it yet.
+#   information.
+#   Illinois was promoted on 2026-09-11, once the pipeline began publishing a per-ZIP
+#   `groceryRate` from IDOR's grocerymache file: its supplements follow the grocery rate, which
+#   is NOT the foodDrugRate column (that is IDOR's medicine rate), and `groceryRate` is the rule
+#   type that says so.
 defaults:
   prescription: exempt          # prescription drugs are exempt in every state below unless overridden
   supplement: general
@@ -52,7 +59,7 @@ states:
   # ---- parsed states ----
   CA: {grocery: exempt, confidence: {supplement: high}}     # supplement verified 2026-09-10: R&TC 6359(c)(1) / Reg 1602(a)(4)
   TX: {grocery: exempt, supplement: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: Tex. Tax Code 151.313(a)(14)+(d)(2)
-  IL: {confidence: {supplement: low}}                       # grocery & Rx via foodDrugRate (1%)
+  IL: {supplement: groceryRate, confidence: {supplement: high}}  # grocery via the per-ZIP groceryRate, Rx via foodDrugRate (the medicine rate); supplement verified 2026-09-11: PIO-115 grocery item 9 + PIO-101 R-01/26 row 1011.  Hemp cannabinoid products leave the food definition 2026-11-12 (P.A. 103-0781) and go to the general rate; the app has one supplement category, so that is an edge case, not a rule (decision #93)
   NY: {grocery: exempt, clothing: {threshold: {limit: "110", above: general}}, supplement: exempt, confidence: {clothing: medium, supplement: high}}  # supplement verified 2026-09-10: Tax Law 1115(a)(1)
   FL: {grocery: exempt, supplement: exempt, confidence: {supplement: high}}  # supplement verified 2026-09-10: Rule 12A-1.011(2)(a)12, F.A.C.
   # ---- SST states (Rx always explicit; grocery explicit unless a reduced food rate applies) ----
