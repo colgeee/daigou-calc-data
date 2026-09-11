@@ -318,3 +318,141 @@ def test_labels_keep_the_census_casing(monkeypatch):
 
 def test_adapter_is_registered():
     assert any(a.name == "il" and a.states == ("IL",) for a in il.REGISTRY)
+
+
+# --- IDOR's separate grocery file (grocerymache-current.txt) ------------------------------
+# 106 characters per record, per file guide IDR-1028 (N-12/25): location id [0:10], name
+# [10:35], county [35:60], the current period's start date [60:68], that period's ONE rate
+# group (grocery high [68:73], grocery low [73:78], over-ride flag [78]), then the prior
+# period's start [79:87] and end [87:95] dates and its own group [95:100], [100:105], [105].
+LIVE_G_CHICAGO_COOK = (
+    '016-0001-1CHICAGO                  COOK                     '
+    '202608010150001500N20260101202607310125001250N'
+)
+LIVE_G_CHICAGO_DUPAGE = (
+    '022-0068-6CHICAGO                  DUPAGE                   '
+    '202608010100001000N20260101202607310075000750N'
+)
+LIVE_G_COOK_COUNTY = (
+    '016-5000-1COOK COUNTY              COOK                     '
+    '202608010150001500N20260101202607310125001250N'
+)
+LIVE_G_CHAMPAIGN = (
+    '010-0005-5CHAMPAIGN                CHAMPAIGN                '
+    '199001010000000000N19900101999912310000000000N'
+)
+LIVE_G_SANGAMON_COUNTY = (
+    '084-5000-8SANGAMON COUNTY          SANGAMON                 '
+    '199001010000000000N19900101999912310000000000N'
+)
+# Metro-East: the over-ride flag is set and high != low, because the MED district taxes some
+# addresses above the rest. The LOW is what every other address pays -- the same reading the
+# ordinance adapter already takes for these jurisdictions.
+LIVE_G_BELLEVILLE = (
+    '082-0001-7BELLEVILLE               ST. CLAIR                '
+    '202601010175001000Y19900101202512310000000000Y'
+)
+LIVE_G_SAINT_CLAIR_COUNTY = (
+    '082-5000-9SAINT CLAIR COUNTY       ST. CLAIR                '
+    '202601010075000000Y19900101202512310000000000Y'
+)
+# An out-of-state row: no county, carried for use-tax lookups, and dropped for the reason the
+# ordinance file's are -- Kansas, Oregon, Virginia, Washington and Wyoming are among these 52
+# and each shares a name with a real Illinois municipality.
+LIVE_G_OUT_OF_STATE = (
+    '200-0099-5ALABAMA                                           '
+    '190001010000000000N19000101999912310000000000N'
+)
+
+G_LIVE = "\n".join([
+    LIVE_G_CHICAGO_COOK, LIVE_G_CHICAGO_DUPAGE, LIVE_G_COOK_COUNTY, LIVE_G_CHAMPAIGN,
+    LIVE_G_SANGAMON_COUNTY, LIVE_G_BELLEVILLE, LIVE_G_SAINT_CLAIR_COUNTY,
+    LIVE_G_OUT_OF_STATE,
+])
+
+
+@pytest.fixture(autouse=True)
+def _grocery_file(monkeypatch):
+    """The grocery floors, lowered once for the whole module rather than in twenty places. A
+    test that asserts a floor re-patches the one it asserts -- same `monkeypatch` instance,
+    later call wins -- and must set it explicitly rather than inheriting it from here.
+
+    Task 3 adds the `_fetch_grocery_text` patch to this fixture, once that attribute exists."""
+    monkeypatch.setattr(il, "MIN_GROCERY_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_GROCERY_COUNTY_ROWS", 0)
+    monkeypatch.setattr(il, "MIN_NONZERO_GROCERY_ROWS", 0)
+
+
+def test_parse_grocery_reads_the_live_columns():
+    rows = {(r.name, r.county): r for r in il.parse_grocery(G_LIVE)}
+    on = date(2026, 9, 11)
+    # Chicago's grocery rate is 1.5% -- the NITA rate on qualifying groceries in Cook from
+    # 2026-08-01 (Bulletin FY 2026-34) -- against the 2.5% Drug & Medical low the ordinance
+    # file publishes for the same jurisdiction. That gap is the whole defect.
+    assert rows[("CHICAGO", "COOK")].rate(on) == (D("0.015"), True)
+    assert rows[("CHICAGO", "DUPAGE")].rate(on) == (D("0.01"), True)
+    assert rows[("COOK COUNTY", "COOK")].rate(on) == (D("0.015"), True)
+    # Champaign adopted no local grocery tax, so it is one of the 708 jurisdictions at 0%.
+    assert rows[("CHAMPAIGN", "CHAMPAIGN")].rate(on) == (D("0"), True)
+    assert rows[("SANGAMON COUNTY", "SANGAMON")].rate(on) == (D("0"), True)
+
+
+def test_parse_grocery_takes_the_low_rate_where_metro_east_makes_them_differ():
+    rows = {(r.name, r.county): r for r in il.parse_grocery(G_LIVE)}
+    on = date(2026, 9, 11)
+    # Belleville: high 1.75% (MED district), low 1.00%.
+    assert rows[("BELLEVILLE", "ST. CLAIR")].rate(on) == (D("0.01"), True)
+    # St. Clair County: high 0.75%, low 0%.
+    assert rows[("SAINT CLAIR COUNTY", "ST. CLAIR")].rate(on) == (D("0"), True)
+
+
+def test_parse_grocery_drops_the_out_of_state_rows():
+    assert not [r for r in il.parse_grocery(G_LIVE) if r.name == "ALABAMA"]
+
+
+def test_parse_grocery_prices_from_the_period_that_covers_on():
+    (row,) = il.parse_grocery(LIVE_G_CHICAGO_COOK)
+    # Current period, open-ended from 2026-08-01.
+    assert row.rate(date(2026, 9, 11)) == (D("0.015"), True)
+    # Prior period, 2026-01-01 to 2026-07-31: Cook's NITA grocery rate was 1.25%.
+    assert row.rate(date(2026, 3, 1)) == (D("0.0125"), True)
+    # Before both: no published rate, so the current one stands in and the caller is told.
+    assert row.rate(date(2025, 6, 1)) == (D("0.015"), False)
+
+
+def test_parse_grocery_raises_when_too_few_rows(monkeypatch):
+    # The real floor, set explicitly: the autouse fixture has pinned it to 1, and a test that
+    # asserts a gate must set the gate it asserts rather than inheriting it.
+    monkeypatch.setattr(il, "MIN_GROCERY_ROWS", 1200)
+    monkeypatch.setattr(il, "MIN_GROCERY_COUNTY_ROWS", 0)
+    monkeypatch.setattr(il, "MIN_NONZERO_GROCERY_ROWS", 0)
+    with pytest.raises(ValueError, match="only 7 data rows"):
+        il.parse_grocery(G_LIVE)
+
+
+def test_parse_grocery_raises_when_too_few_county_rows(monkeypatch):
+    monkeypatch.setattr(il, "MIN_GROCERY_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_NONZERO_GROCERY_ROWS", 0)
+    monkeypatch.setattr(il, "MIN_GROCERY_COUNTY_ROWS", 90)
+    with pytest.raises(ValueError, match="county rows"):
+        il.parse_grocery(G_LIVE)
+
+
+def test_parse_grocery_raises_when_every_rate_reads_as_zero(monkeypatch):
+    """The failure a row count cannot see: columns that shifted into the record's padding
+    parse as blanks, and blanks read as 0%. An all-zero table is a plausible answer -- every
+    Illinois grocery quote would simply be free -- so the floor of non-zero rates is what
+    tells a shifted file apart from a state that taxes no groceries."""
+    monkeypatch.setattr(il, "MIN_GROCERY_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_GROCERY_COUNTY_ROWS", 0)
+    monkeypatch.setattr(il, "MIN_NONZERO_GROCERY_ROWS", 3)
+    with pytest.raises(ValueError, match="non-zero"):
+        il.parse_grocery("\n".join([LIVE_G_CHAMPAIGN, LIVE_G_SANGAMON_COUNTY]))
+
+
+def test_parse_grocery_raises_on_a_rate_above_the_ceiling():
+    """A general-merchandise column read as a grocery one: Illinois' grocery tax is 1% local
+    plus NITA or MED and tops out at 2.5%, so 6.25% means the columns moved."""
+    shifted = LIVE_G_CHICAGO_COOK[:73] + "06250" + LIVE_G_CHICAGO_COOK[78:]
+    with pytest.raises(ValueError, match="above the"):
+        il.parse_grocery(shifted)

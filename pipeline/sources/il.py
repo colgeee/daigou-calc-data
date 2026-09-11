@@ -49,6 +49,41 @@ _PRIOR_END = slice(140, 148)
 _PRIOR_GM_LOW = slice(158, 163)
 _PRIOR_DM_LOW = slice(163, 168)
 
+GROCERY_URL = (
+    "https://tax.illinois.gov/content/dam/soi/en/web/tax/research/taxrates/documents/"
+    "salestaxrates/grocerymache-current.txt"
+)
+# The live grocery file runs 1 596 records: 102 counties, ~1 440 municipalities and 52 all-zero
+# rows for OTHER states. Same floors, and the same reason, as the ordinance file's.
+MIN_GROCERY_ROWS = 1200
+MIN_GROCERY_COUNTY_ROWS = 90
+# 888 of those 1 596 records carry a non-zero grocery rate; 708 are genuinely at 0% because
+# their jurisdiction adopted no local grocery tax. Columns that shift into the record's padding
+# parse as blanks, and blanks read as 0% -- an all-zero table is a plausible-looking answer,
+# not an obviously broken one, so a floor on the non-zero rows is what tells the two apart.
+MIN_NONZERO_GROCERY_ROWS = 300
+# The tax is 1% municipal or county (65 ILCS 5/8-11-24, 55 ILCS 5/5-1006.9) plus NITA or MED,
+# and the published maximum is 2.5%. Anything above 5% is a general-merchandise column read as
+# a grocery one.
+MAX_GROCERY_RATE = Decimal("0.05")
+
+# Fixed-width record layout, 106 characters per line, per IDOR file guide IDR-1028 (N-12/25).
+# Header: location id [0:10], name [10:35], county [35:60], the current period's start date
+# [60:68]. Then ONE 11-character rate group for that period -- grocery high, grocery low,
+# over-ride flag -- followed by the prior period's start and end dates and its own group.
+#
+# Two differences from the ordinance file. There is no address-override flag: the ordinance
+# file zeroes the rate group for the ~200 municipalities IDOR taxes by address, but the grocery
+# file files a usable rate for every location. And the over-ride flag here is the ordinance
+# file's *Receipts* over-ride, not its address one -- it marks the 52 Metro-East jurisdictions
+# where the MED district makes the high and low rates differ, and the low is what every address
+# outside the district pays, which is the pair this module already reads from the ordinance file.
+_G_BEGIN = slice(60, 68)
+_G_LOW = slice(73, 78)
+_G_PRIOR_BEGIN = slice(79, 87)
+_G_PRIOR_END = slice(87, 95)
+_G_PRIOR_LOW = slice(100, 105)
+
 
 @dataclass(frozen=True)
 class IlRow:
@@ -79,6 +114,30 @@ class IlRow:
         if self.prior_begin and self.prior_end and self.prior_begin <= on <= self.prior_end:
             return self.prior_gm_low, self.prior_dm_low, True
         return self.gm_low, self.dm_low, False
+
+
+@dataclass(frozen=True)
+class GroceryRow:
+    """A jurisdiction's published grocery rate over its two periods: the current one,
+    open-ended from `begin`, and the prior one, `prior_begin` to `prior_end` inclusive."""
+
+    location_id: str
+    name: str
+    county: str
+    begin: date | None
+    low: Decimal
+    prior_begin: date | None = None
+    prior_end: date | None = None
+    prior_low: Decimal = Decimal(0)
+
+    def rate(self, on: date) -> tuple[Decimal, bool]:
+        """The grocery rate in force on `on`, and whether a period actually covered it --
+        the ladder `IlRow.rates` walks, for the same reasons."""
+        if self.begin is None or on >= self.begin:
+            return self.low, True
+        if self.prior_begin and self.prior_end and self.prior_begin <= on <= self.prior_end:
+            return self.prior_low, True
+        return self.low, False
 
 
 def _fetch_text() -> str:
@@ -138,6 +197,63 @@ def parse(text: str) -> list[IlRow]:
         raise ValueError(
             f"Illinois rate file: only {counties} county rows parsed, expected at least "
             f"{MIN_COUNTY_ROWS} of the state's 102 -- the file may be reordered"
+        )
+    return out
+
+
+def _fetch_grocery_text() -> str:
+    return get_cached(GROCERY_URL, ttl_days=30).decode("utf-8", "replace")
+
+
+def parse_grocery(text: str) -> list[GroceryRow]:
+    """One record per jurisdiction that may levy the local grocery tax, plus a
+    ``<COUNTY> COUNTY`` record for each of the 102 counties, which is what unincorporated
+    territory pays.
+
+    Rows naming no county are dropped for the reason the ordinance file's are: they are the 52
+    all-zero entries for OTHER states, carried for use-tax lookups, and five of them share a
+    name with a real Illinois municipality.
+
+    Raises ``ValueError`` if the parse yields implausibly few rows, too few county rows, too
+    few non-zero rates, or a rate above ``MAX_GROCERY_RATE`` -- each is a sign the file is an
+    error page or that its columns shifted."""
+    out = []
+    for line in text.splitlines():
+        if len(line) < 105:
+            continue
+        county = line[35:60].strip().upper()
+        if not county:
+            continue
+        low = _v99999(line[_G_LOW])
+        if low > MAX_GROCERY_RATE:
+            raise ValueError(
+                f"Illinois grocery file: {line[10:35].strip()} ({county}, "
+                f"{line[0:10].strip()}) has a low grocery rate of {low}, above the "
+                f"{MAX_GROCERY_RATE} ceiling -- the file's columns may have shifted"
+            )
+        out.append(GroceryRow(
+            line[0:10].strip(), line[10:35].strip().upper(), county,
+            _date8(line[_G_BEGIN]), low,
+            _date8(line[_G_PRIOR_BEGIN]), _date8(line[_G_PRIOR_END]),
+            _v99999(line[_G_PRIOR_LOW]),
+        ))
+    if len(out) < MIN_GROCERY_ROWS:
+        raise ValueError(
+            f"Illinois grocery file: only {len(out)} data rows parsed, expected at least "
+            f"{MIN_GROCERY_ROWS} -- the file may be an error page or its columns shifted"
+        )
+    counties = sum(1 for r in out if r.name.endswith(" COUNTY"))
+    if counties < MIN_GROCERY_COUNTY_ROWS:
+        raise ValueError(
+            f"Illinois grocery file: only {counties} county rows parsed, expected at least "
+            f"{MIN_GROCERY_COUNTY_ROWS} of the state's 102 -- the file may be reordered"
+        )
+    nonzero = sum(1 for r in out if r.low > 0)
+    if nonzero < MIN_NONZERO_GROCERY_ROWS:
+        raise ValueError(
+            f"Illinois grocery file: only {nonzero} rows carry a non-zero grocery rate, "
+            f"expected at least {MIN_NONZERO_GROCERY_ROWS} -- the columns may have shifted "
+            f"into the record's padding, which reads as 0%"
         )
     return out
 
