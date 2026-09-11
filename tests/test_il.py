@@ -356,6 +356,17 @@ LIVE_G_SAINT_CLAIR_COUNTY = (
     '082-5000-9SAINT CLAIR COUNTY       ST. CLAIR                '
     '202601010075000000Y19900101202512310000000000Y'
 )
+# The record that pins `_G_PRIOR_LOW`. Every other fixture here has prior high == prior low, so
+# the prior slice could point one column group left, at the prior *high* [95:100], with the whole
+# suite still green -- and the ceiling check guards the current low only, so nothing else catches
+# it either. Brooklyn's prior period is the exception: high 0.750% against low 0.000%, over
+# 2026-01-01 to 2026-06-30. No live row is future-dated today, so the prior branch is unreachable
+# in production right now; a January file carrying a future-dated period would reach it, and would
+# hand every Metro-East address the MED district's high rate.
+LIVE_G_BROOKLYN = (
+    '082-0010-6BROOKLYN                 ST. CLAIR                '
+    '202607010175001000Y20260101202606300075000000Y'
+)
 # An out-of-state row: no county, carried for use-tax lookups, and dropped for the reason the
 # ordinance file's are -- Kansas, Oregon, Virginia, Washington and Wyoming are among these 52
 # and each shares a name with a real Illinois municipality.
@@ -392,7 +403,8 @@ def test_parse_grocery_reads_the_live_columns():
     assert rows[("CHICAGO", "COOK")].rate(on) == (D("0.015"), True)
     assert rows[("CHICAGO", "DUPAGE")].rate(on) == (D("0.01"), True)
     assert rows[("COOK COUNTY", "COOK")].rate(on) == (D("0.015"), True)
-    # Champaign adopted no local grocery tax, so it is one of the 708 jurisdictions at 0%.
+    # Champaign adopted no local grocery tax, so it is one of the 656 jurisdictions the parse
+    # keeps at 0% (708 of the file's 1 596 records, less the 52 all-zero out-of-state rows).
     assert rows[("CHAMPAIGN", "CHAMPAIGN")].rate(on) == (D("0"), True)
     assert rows[("SANGAMON COUNTY", "SANGAMON")].rate(on) == (D("0"), True)
 
@@ -420,6 +432,19 @@ def test_parse_grocery_prices_from_the_period_that_covers_on():
     assert row.rate(date(2025, 6, 1)) == (D("0.015"), False)
 
 
+def test_parse_grocery_reads_the_prior_periods_low_rate_not_its_high():
+    """The prior period has its own high/low pair, and `_G_PRIOR_LOW` must land on the low one.
+    Brooklyn is the only record here where the two differ -- prior high 0.750%, prior low 0% --
+    so it is the only one that can tell `slice(100, 105)` from `slice(95, 100)`. Pointed one
+    group left, this returns 0.0075 and a Metro-East address pays the MED district's rate."""
+    (row,) = il.parse_grocery(LIVE_G_BROOKLYN)
+    # Current period, open-ended from 2026-07-01: high 1.750%, low 1.000%.
+    assert row.rate(date(2026, 9, 11)) == (D("0.01"), True)
+    # Prior period, 2026-01-01 to 2026-06-30: high 0.750%, low 0%.
+    assert row.rate(date(2026, 3, 1)) == (D("0"), True)
+    assert (row.prior_begin, row.prior_end) == (date(2026, 1, 1), date(2026, 6, 30))
+
+
 def test_parse_grocery_raises_when_too_few_rows(monkeypatch):
     # The real floor, set explicitly: the autouse fixture has pinned it to 1, and a test that
     # asserts a gate must set the gate it asserts rather than inheriting it.
@@ -438,21 +463,48 @@ def test_parse_grocery_raises_when_too_few_county_rows(monkeypatch):
         il.parse_grocery(G_LIVE)
 
 
-def test_parse_grocery_raises_when_every_rate_reads_as_zero(monkeypatch):
+def test_parse_grocery_raises_when_too_few_rows_carry_a_non_zero_rate(monkeypatch):
     """The failure a row count cannot see: columns that shifted into the record's padding
     parse as blanks, and blanks read as 0%. An all-zero table is a plausible answer -- every
     Illinois grocery quote would simply be free -- so the floor of non-zero rates is what
-    tells a shifted file apart from a state that taxes no groceries."""
+    tells a shifted file apart from a state that taxes no groceries.
+
+    The input is deliberately mixed, one non-zero row against two zero ones with the floor at
+    two. Feeding it zero rows only would trip the gate for the wrong reason: `r.low >= 0` and
+    a plain `len(out)` would raise on that input too, so it could not tell a correct non-zero
+    counter from a broken one. Only a counter that really counts non-zero rates raises here."""
     monkeypatch.setattr(il, "MIN_GROCERY_ROWS", 1)
     monkeypatch.setattr(il, "MIN_GROCERY_COUNTY_ROWS", 0)
-    monkeypatch.setattr(il, "MIN_NONZERO_GROCERY_ROWS", 3)
-    with pytest.raises(ValueError, match="non-zero"):
-        il.parse_grocery("\n".join([LIVE_G_CHAMPAIGN, LIVE_G_SANGAMON_COUNTY]))
+    monkeypatch.setattr(il, "MIN_NONZERO_GROCERY_ROWS", 2)
+    with pytest.raises(ValueError, match="only 1 rows carry a non-zero"):
+        il.parse_grocery("\n".join(
+            [LIVE_G_CHICAGO_COOK, LIVE_G_CHAMPAIGN, LIVE_G_SANGAMON_COUNTY]))
+
+
+def _grocery_low(rate5: str) -> str:
+    """Chicago's live record with its current-period grocery low column swapped out. The other
+    105 characters stay verbatim, so a ceiling test trips on that column and nothing else."""
+    return LIVE_G_CHICAGO_COOK[:73] + rate5 + LIVE_G_CHICAGO_COOK[78:]
 
 
 def test_parse_grocery_raises_on_a_rate_above_the_ceiling():
     """A general-merchandise column read as a grocery one: Illinois' grocery tax is 1% local
     plus NITA or MED and tops out at 2.5%, so 6.25% means the columns moved."""
-    shifted = LIVE_G_CHICAGO_COOK[:73] + "06250" + LIVE_G_CHICAGO_COOK[78:]
     with pytest.raises(ValueError, match="above the"):
-        il.parse_grocery(shifted)
+        il.parse_grocery(_grocery_low("06250"))
+
+
+def test_the_grocery_ceiling_sits_exactly_at_max_grocery_rate():
+    """The 6.25% case above is satisfied by any ceiling between 1.5% and 6.25%, so it pins
+    MAX_GROCERY_RATE nowhere. These two do, in the file's own 0.00001 granularity: one step
+    above the ceiling must raise, and the ceiling itself must not. Move the constant in either
+    direction and one of them fails.
+
+    Exactly 0.05 is admitted, because `>` is the intended comparison rather than an off-by-one:
+    the ceiling is a tripwire for a shifted column, not a published maximum -- the real maximum
+    is 2.5%, so no honest record comes near it -- and `_local`, this module's other guard, is
+    exclusive at its own boundary too."""
+    with pytest.raises(ValueError, match="above the"):
+        il.parse_grocery(_grocery_low("05001"))
+    (row,) = il.parse_grocery(_grocery_low("05000"))
+    assert row.rate(date(2026, 9, 11)) == (D("0.05"), True)

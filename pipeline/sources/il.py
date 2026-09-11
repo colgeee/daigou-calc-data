@@ -57,10 +57,12 @@ GROCERY_URL = (
 # rows for OTHER states. Same floors, and the same reason, as the ordinance file's.
 MIN_GROCERY_ROWS = 1200
 MIN_GROCERY_COUNTY_ROWS = 90
-# 888 of those 1 596 records carry a non-zero grocery rate; 708 are genuinely at 0% because
-# their jurisdiction adopted no local grocery tax. Columns that shift into the record's padding
-# parse as blanks, and blanks read as 0% -- an all-zero table is a plausible-looking answer,
-# not an obviously broken one, so a floor on the non-zero rows is what tells the two apart.
+# 888 of those 1 596 records carry a non-zero grocery rate, and the rest are genuinely at 0%
+# because their jurisdiction adopted no local grocery tax: 708 of the 1 596 records, 656 of the
+# 1 544 the parse keeps, the difference being that all 52 dropped out-of-state rows are zero.
+# Columns that shift into the record's padding parse as blanks, and blanks read as 0% -- an
+# all-zero table is a plausible-looking answer, not an obviously broken one, so a floor on the
+# non-zero rows is what tells the two apart.
 MIN_NONZERO_GROCERY_ROWS = 300
 # The tax is 1% municipal or county (65 ILCS 5/8-11-24, 55 ILCS 5/5-1006.9) plus NITA or MED,
 # and the published maximum is 2.5%. Anything above 5% is a general-merchandise column read as
