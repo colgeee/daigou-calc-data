@@ -8,6 +8,23 @@ MAX_RATE = Decimal("0.15")
 ZIP_RE = re.compile(r"^\d{5}$")
 RATE_KEYS = {"stateReplaced": "rate", "combined": "rate", "surcharge": "extra"}
 
+# States whose profiles must carry a per-jurisdiction grocery rate. Illinois is the only one:
+# its `foodDrugRate` is IDOR's Drug & Medical (medicine) column, so a null `groceryRate` there
+# is a lost column, and the app would silently fall back to quoting groceries at the medicine
+# rate -- the defect this field exists to fix (decision #88).
+GROCERY_REQUIRED = ("IL",)
+
+
+def grocery_required(states: dict) -> frozenset[str]:
+    """The state codes whose profiles must carry a non-null `groceryRate`: the hard-coded
+    `GROCERY_REQUIRED`, plus any state whose rules point a category at the rate. The second
+    half is what keeps the gate honest for a state added later -- a rule naming a rate nobody
+    publishes resolves to the general rate behind a low-confidence marker, in exactly the
+    state the rule was written for."""
+    named = {code for code, s in states.items()
+             if any(r.get("t") == "groceryRate" for r in (s.get("rules") or {}).values())}
+    return frozenset(GROCERY_REQUIRED) | named
+
 
 def _rate(v: object, where: str, errors: list[str]) -> None:
     if not isinstance(v, str):
@@ -30,7 +47,7 @@ def _rule(r: dict, where: str, errors: list[str]) -> None:
         if not isinstance(r.get("limit"), str):
             errors.append(f"{where}: threshold limit must be a string")
         _rule(r.get("above", {}), where, errors)
-    elif t not in ("exempt", "general", "localOnly", "unknown"):
+    elif t not in ("exempt", "general", "localOnly", "unknown", "groceryRate"):
         errors.append(f"{where}: unknown rule type {t!r}")
 
 
@@ -45,11 +62,16 @@ def validate(doc: dict, *, min_zips: int = 25000) -> list[str]:
     zips = doc.get("zips", [])
     if len(zips) < min_zips:
         errors.append(f"zips: expected at least {min_zips}, got {len(zips)}")
+    needs_grocery = grocery_required(states)
     for pid, p in profiles.items():
         for k in ("stateRate", "localRate"):
             _rate(p.get(k), f"profile {pid} {k}", errors)
         if p.get("foodDrugRate") is not None:
             _rate(p["foodDrugRate"], f"profile {pid} foodDrugRate", errors)
+        if p.get("groceryRate") is not None:
+            _rate(p["groceryRate"], f"profile {pid} groceryRate", errors)
+        elif p.get("state") in needs_grocery:
+            errors.append(f"profile {pid}: {p['state']} profiles must carry a groceryRate")
         if isinstance(p.get("stateRate"), str) and isinstance(p.get("localRate"), str):
             try:
                 if Decimal(p["stateRate"]) + Decimal(p["localRate"]) > MAX_RATE:

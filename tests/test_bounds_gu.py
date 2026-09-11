@@ -17,5 +17,5 @@ def test_guam_is_one_rectangle_at_zero_per_cent(tmp_path):
     assert lons == {144.5, 145.1} and lats == {13.1, 13.75}
     assert out.profiles["GU-0-0-GUAM"] == {
         "state": "GU", "label": "Guam", "stateRate": "0", "localRate": "0",
-        "foodDrugRate": None}
+        "foodDrugRate": None, "groceryRate": None}
     assert out.notes["gu"]["bounds"] == [13.1, 13.75, 144.5, 145.1]

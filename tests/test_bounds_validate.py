@@ -19,15 +19,15 @@ def doc() -> dict:
         "profiles": {
             "CA-0.0725-0.035-SANTA MONICA, CA": {
                 "state": "CA", "label": "Santa Monica, CA", "stateRate": "0.0725",
-                "localRate": "0.035", "foodDrugRate": None},
-            "IL-0.0625-0.04-CHICAGO, IL-FD0.01": {
+                "localRate": "0.035", "foodDrugRate": None, "groceryRate": None},
+            "IL-0.0625-0.04-CHICAGO, IL-FD0.01-GR0.015": {
                 "state": "IL", "label": "Chicago, IL", "stateRate": "0.0625",
-                "localRate": "0.04", "foodDrugRate": "0.01"}},
+                "localRate": "0.04", "foodDrugRate": "0.01", "groceryRate": "0.015"}},
         "polygons": [
             {"id": "cdtfa:SANTA MONICA", "source": "cdtfa",
              "profile": "CA-0.0725-0.035-SANTA MONICA, CA", "rings": [[0, 1]]},
             {"id": "tiger-il:1714000-17031", "source": "tiger-il",
-             "profile": "IL-0.0625-0.04-CHICAGO, IL-FD0.01", "rings": [[2, -1]]}],
+             "profile": "IL-0.0625-0.04-CHICAGO, IL-FD0.01-GR0.015", "rings": [[2, -1]]}],
         "sources": {"cdtfa": {"count": 1}, "tiger-il": {"count": 1}},
     }
 
@@ -74,7 +74,7 @@ def test_an_illinois_profile_must_carry_a_food_drug_rate():
     """Illinois taxes qualifying food and drugs at a reduced rate in every jurisdiction, so
     a null there means the join lost it and a Chicago grocery quote would be 1.75 pt high."""
     def m(d):
-        d["profiles"]["IL-0.0625-0.04-CHICAGO, IL-FD0.01"]["foodDrugRate"] = None
+        d["profiles"]["IL-0.0625-0.04-CHICAGO, IL-FD0.01-GR0.015"]["foodDrugRate"] = None
     assert any("foodDrugRate" in e and "IL" in e for e in errs(m))
 
 
@@ -121,7 +121,7 @@ def test_a_profile_shared_with_the_rates_file_must_carry_the_same_body_there():
     shared = {**RATES, "profiles": {
         "CA-0.0725-0.035-SANTA MONICA, CA": {
             "state": "CA", "label": "Santa monica, CA", "stateRate": "0.0725",
-            "localRate": "0.035", "foodDrugRate": None}}}
+            "localRate": "0.035", "foodDrugRate": None, "groceryRate": None}}}
     out = errs(rates_doc=shared)
     assert out == ["profile CA-0.0725-0.035-SANTA MONICA, CA: differs from the rates file "
                    "(label 'Santa Monica, CA' vs 'Santa monica, CA')"]
@@ -150,3 +150,26 @@ def test_a_bad_ring_does_not_hide_a_later_bad_ring():
     out = errs(m)
     assert any("arc index" in e for e in out)
     assert any("does not close" in e for e in out)
+
+
+def test_illinois_bounds_profiles_must_carry_a_grocery_rate():
+    def m(d):
+        d["profiles"]["IL-0.0625-0.04-CHICAGO, IL-FD0.01-GR0.015"]["groceryRate"] = None
+    assert any("must carry a groceryRate" in e for e in errs(m))
+
+
+def test_bounds_grocery_rate_range_is_checked():
+    def m(d):
+        d["profiles"]["IL-0.0625-0.04-CHICAGO, IL-FD0.01-GR0.015"]["groceryRate"] = "0.9"
+    assert any("groceryRate" in e and "out of range" in e for e in errs(m))
+
+
+def test_a_state_naming_the_grocery_rule_must_publish_the_rate_in_the_overlay():
+    """The overlay carries its own profiles, so the gate has to live on both sides: a state
+    pointed at a rate only the rates file publishes would quote that category from the ZIP
+    path and fall back to the general rate off a polygon, for the same address."""
+    rates = {**RATES, "states": {**RATES["states"],
+                                 "CA": {"localCoverage": True,
+                                        "rules": {"supplement": {"t": "groceryRate"}},
+                                        "confidence": {}}}}
+    assert any("must carry a groceryRate" in e for e in errs(rates_doc=rates))

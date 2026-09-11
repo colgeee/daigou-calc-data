@@ -55,3 +55,40 @@ def test_nested_rule_rate_checked():
     d = doc()
     d["states"]["CA"]["rules"]["clothing"]["above"] = {"t": "combined", "rate": "0.3"}
     assert any("rule clothing" in e for e in validate(d, min_zips=1))
+
+
+def test_grocery_rate_range_is_checked():
+    d = doc()
+    next(iter(d["profiles"].values()))["groceryRate"] = "0.9"
+    assert any("groceryRate" in e and "out of range" in e for e in validate(d, min_zips=1))
+
+
+def test_illinois_profiles_must_carry_a_grocery_rate():
+    d = assemble(
+        [ZipRate("60601", "IL", D("0.0625"), D("0.0425"), D("0.025"), "Chicago, IL")],
+        {"60601": (41.88, -87.62)},
+        {"IL": {"localCoverage": True, "rules": {}, "confidence": {}}},
+        effective="2026-10-01", published="2026-09-11T00:00:00Z")
+    assert any("must carry a groceryRate" in e for e in validate(d, min_zips=1))
+
+
+def test_a_state_naming_the_grocery_rule_must_publish_the_rate():
+    """The gate that survives someone dropping IL from GROCERY_REQUIRED, and the one that
+    catches a future state pointed at a rate its adapter never emits: the app would resolve
+    that category to the general rate behind a low-confidence marker, silently, in exactly
+    the state the rule was written for."""
+    d = doc()
+    d["states"]["CA"]["rules"]["supplement"] = {"t": "groceryRate"}
+    assert any("must carry a groceryRate" in e for e in validate(d, min_zips=1))
+
+
+def test_grocery_rule_type_is_known():
+    d = doc()
+    d["states"]["CA"]["rules"]["supplement"] = {"t": "groceryRate"}
+    assert not any("unknown rule type" in e for e in validate(d, min_zips=1))
+
+
+def test_a_misspelled_grocery_rule_is_still_refused():
+    d = doc()
+    d["states"]["CA"]["rules"]["supplement"] = {"t": "groceryrate"}
+    assert any("unknown rule type" in e for e in validate(d, min_zips=1))

@@ -63,7 +63,7 @@ def test_to_features_keeps_the_current_row_per_jurisdiction_and_mints_profiles()
     assert by_id["cdtfa:SANTA MONICA"] == "CA-0.0725-0.035-SANTA MONICA, CA"
     assert profiles["CA-0.0725-0.035-SANTA MONICA, CA"] == {
         "state": "CA", "label": "Santa Monica, CA", "stateRate": "0.0725",
-        "localRate": "0.035", "foodDrugRate": None}
+        "localRate": "0.035", "foodDrugRate": None, "groceryRate": None}
     # `display_name` fixes the one CDTFA name that still needs it.
     assert profiles[by_id["cdtfa:MCFARLAND"]]["label"] == "McFarland, CA"
     later, _ = ca.to_features(drop_noise(geojson()), date(2031, 6, 1))

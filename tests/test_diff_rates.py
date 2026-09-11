@@ -12,7 +12,7 @@ def doc(rows: dict[str, tuple[str, str, str]]) -> dict:
     for z, (st, sr, lr) in sorted(rows.items()):
         pid = f"{st}-{sr}-{lr}-{z}"
         profiles[pid] = {"state": st, "label": z, "stateRate": sr, "localRate": lr,
-                         "foodDrugRate": None}
+                         "foodDrugRate": None, "groceryRate": None}
         zips.append([z, 0, 0, pid])
     return {"schemaVersion": "1", "effectiveDate": "2026-07-01", "publishedAt": "x",
             "profiles": profiles, "states": {}, "zips": zips}

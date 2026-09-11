@@ -11,7 +11,7 @@ from decimal import Decimal, InvalidOperation
 
 from pipeline.bounds.topo import decode_ring
 from pipeline.build_rates import _gzip_bytes
-from pipeline.validate import MAX_RATE
+from pipeline.validate import MAX_RATE, grocery_required
 
 KEYS = frozenset({"schemaVersion", "effectiveDate", "publishedAt", "transform", "arcs",
                   "profiles", "polygons", "sources"})
@@ -49,6 +49,7 @@ def validate_bounds(doc: dict, *, rates_doc: dict, min_by_source: dict[str, int]
 
     profiles = doc.get("profiles", {})
     states = rates_doc.get("states", {})
+    needs_grocery = grocery_required(states)
     rates_profiles = rates_doc.get("profiles", {})
     for pid, p in profiles.items():
         # An id shared with the rates file must name the same profile in both. The id is
@@ -71,6 +72,10 @@ def validate_bounds(doc: dict, *, rates_doc: dict, min_by_source: dict[str, int]
             _rate(p["foodDrugRate"], f"profile {pid} foodDrugRate", errors)
         elif p.get("state") in FOOD_DRUG_REQUIRED:
             errors.append(f"profile {pid}: {p['state']} profiles must carry a foodDrugRate")
+        if p.get("groceryRate") is not None:
+            _rate(p["groceryRate"], f"profile {pid} groceryRate", errors)
+        elif p.get("state") in needs_grocery:
+            errors.append(f"profile {pid}: {p['state']} profiles must carry a groceryRate")
         if p.get("state") not in states:
             errors.append(f"profile {pid}: no state rules for {p.get('state')} in the rates file")
 

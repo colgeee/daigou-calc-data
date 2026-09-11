@@ -32,4 +32,5 @@ def profile_entry(r: ZipRate) -> tuple[str, dict]:
         "stateRate": rate_str(r.state_rate),
         "localRate": rate_str(r.local_rate),
         "foodDrugRate": None if r.food_drug_rate is None else rate_str(r.food_drug_rate),
+        "groceryRate": None if r.grocery_rate is None else rate_str(r.grocery_rate),
     }

@@ -15,9 +15,11 @@ RATES = {"schemaVersion": "1", "effectiveDate": "2026-07-01", "publishedAt": "x"
          "profiles": {}, "states": {"T": {"localCoverage": True, "rules": {}, "confidence": {}}},
          "zips": []}
 PROFILES = {"T-0.05-0-LEFT, T": {"state": "T", "label": "Left, T", "stateRate": "0.05",
-                                 "localRate": "0", "foodDrugRate": None},
+                                 "localRate": "0", "foodDrugRate": None,
+                                 "groceryRate": None},
             "T-0.05-0-RIGHT, T": {"state": "T", "label": "Right, T", "stateRate": "0.05",
-                                  "localRate": "0", "foodDrugRate": None}}
+                                  "localRate": "0", "foodDrugRate": None,
+                                  "groceryRate": None}}
 
 
 def fake_source(name: str):
