@@ -584,3 +584,27 @@ def test_jurisdictions_carry_the_grocery_rate(monkeypatch):
     # with the ZIP that covers the same block.
     assert out["17031"].grocery_rate == D("0.015")
     assert out[("1714000", "17031")].grocery_rate == D("0.015")
+
+
+def test_jurisdictions_publish_no_grocery_rate_for_a_jurisdiction_the_file_omits(monkeypatch):
+    """The polygon twin of the `rows` test above, and the reason `jurisdictions` degrades to
+    None rather than to the food/drug rate: these records become the bounds document's own
+    profiles, where `pipeline/bounds/validate.py` gates every Illinois one on a non-null
+    `groceryRate`. A missing row therefore fails `python -m pipeline bounds` before publish,
+    instead of quoting a GPS shopper the medicine rate for groceries.
+
+    Both polygon kinds are asserted, because `jurisdictions` builds them at two separate call
+    sites: the county remainder, and the place-crossed-with-county pairing."""
+    census = _chicago_census()
+    monkeypatch.setattr(il, "_fetch_text",
+                        lambda: "\n".join([LIVE_CHICAGO_COOK, LIVE_COOK_COUNTY]))
+    monkeypatch.setattr(il, "_fetch_grocery_text", lambda: LIVE_G_CHAMPAIGN)
+    monkeypatch.setattr(il, "MIN_DATA_ROWS", 1)
+    monkeypatch.setattr(il, "MIN_COUNTY_ROWS", 0)
+    out = il.IlAdapter().jurisdictions(census, date(2026, 9, 11))
+    assert out["17031"].grocery_rate is None
+    assert out[("1714000", "17031")].grocery_rate is None
+    # Only the grocery rate degrades: the ordinance file priced both polygons, so the general
+    # and medicine rates are published exactly as they were.
+    assert out["17031"].food_drug_rate == D("0.025")
+    assert out[("1714000", "17031")].general_rate == D("0.105")

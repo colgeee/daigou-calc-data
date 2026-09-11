@@ -309,7 +309,7 @@ class IlAdapter:
             g = grocery.get(key)
             out[county_geoid] = ZipRate(
                 "", "IL", STATE_RATE, _local(row, gm), dm, f"{county_label}, IL",
-                None if g is None else g.rate(on)[0])
+                grocery_rate=None if g is None else g.rate(on)[0])
         for place_geoid, (place_key, name) in wanted_places(places).items():
             for county_key, (county_geoid, _label) in counties.items():
                 key = (place_key, county_key)
@@ -320,7 +320,7 @@ class IlAdapter:
                 g = grocery.get(key)
                 out[(place_geoid, county_geoid)] = ZipRate(
                     "", "IL", STATE_RATE, _local(row, gm), dm, f"{name}, IL",
-                    None if g is None else g.rate(on)[0])
+                    grocery_rate=None if g is None else g.rate(on)[0])
         return out
 
     def rows(self, census: Census, on: date) -> Iterable[ZipRate]:
@@ -391,7 +391,8 @@ class IlAdapter:
             # rate, so `food_drug_rate` is always published, never collapsed to None the way
             # an SST state's equal-to-general rate is. Since 2026-01-01 that is the medicine
             # rate only; groceries read `grocery_rate`.
-            yield ZipRate(zip5, "IL", STATE_RATE, _local(row, gm), dm, label, grocery_rate)
+            yield ZipRate(zip5, "IL", STATE_RATE, _local(row, gm), dm, label,
+                          grocery_rate=grocery_rate)
         note = ""
         if uncovered:
             zips = "ZIP" if uncovered == 1 else "ZIPs"

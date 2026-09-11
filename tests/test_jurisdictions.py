@@ -37,12 +37,14 @@ IL_STRADDLE_FIXTURE = "\n".join([
 ])
 
 
-def g_rec(loc, name, county, eff, hi, lo, rflag="N"):
+def g_rec(loc, name, county, eff, hi, lo):
     """One 106-character record of IDOR's separate grocery file (guide IDR-1028): id, name,
     county, the current period's start date and that period's single high/low rate group,
-    then a long-closed prior period at 0%."""
-    return (loc.ljust(10) + name.ljust(25) + county.ljust(25) + eff + hi + lo + rflag
-            + "19900101" + "20251231" + "00000" + "00000" + rflag)
+    then a long-closed prior period at 0%. Both over-ride flags are hard-coded `N`: the
+    Metro-East records that set the flag and part high from low are `tests/test_il.py`'s
+    business, and nothing here needs more than a rate to ride along on a profile id."""
+    return (loc.ljust(10) + name.ljust(25) + county.ljust(25) + eff + hi + lo + "N"
+            + "19900101" + "20251231" + "00000" + "00000" + "N")
 
 
 # The grocery table for both fixtures above. Chicago's two sides carry different grocery rates
