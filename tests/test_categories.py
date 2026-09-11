@@ -84,9 +84,9 @@ def test_supplement_rulings():
     assert s["IL"]["rules"]["supplement"] == {"t": "groceryRate"}
     assert s["IL"]["confidence"]["supplement"] == "high"
     # Illinois grocery stays implicit because that same fallback is wrong there: an explicit rule
-    # would move Chicago groceries from the 2.5% medicine rate the old build quotes today to
-    # 10.25% on every already-installed phone.  Prescription stays implicit too -- it reads
-    # `foodDrugRate`, which for Rx is exactly the right column.
+    # would move Chicago groceries from the 2.5% medicine rate the old build quotes today to its
+    # 10.5% general rate (0.0625 state + 0.0425 local) on every already-installed phone.
+    # Prescription stays implicit too -- it reads `foodDrugRate`, which for Rx is the right column.
     assert "grocery" not in s["IL"]["rules"]
     assert "prescription" not in s["IL"]["rules"]
     # Everything still unverified, listed explicitly so lowering or raising one is deliberate.
